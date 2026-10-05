@@ -79,6 +79,30 @@ describe("оборудование и QR", () => {
 });
 
 describe("файлы и голос", () => {
+  it("SEC-4: файлы доступны только по подписанной ссылке из API или с токеном", async () => {
+    const up = await request(app).post("/api/uploads").set(bearer(base.worker1)).attach("file", await scene(2), "p.jpg");
+    const signed: string = up.body.url;
+    expect(signed).toMatch(/^\/uploads\/[0-9a-f]{32}\?exp=\d+&sig=[\w-]+$/);
+    const plain = signed.split("?")[0];
+    expect((await request(app).get(plain)).status).toBe(401);
+    expect((await request(app).get(signed)).status).toBe(200);
+    expect((await request(app).get(plain).set(bearer(base.worker2))).status).toBe(200);
+    expect((await request(app).get(signed.replace(/sig=./, "sig=X"))).status).toBe(401);
+    const other = (await request(app).post("/api/uploads").set(bearer(base.worker1)).attach("file", await scene(3), "q.jpg")).body.url.split("?")[0];
+    expect((await request(app).get(other + signed.slice(signed.indexOf("?")))).status).toBe(401); // подпись привязана к файлу
+    expect((await request(app).get(`${plain}?exp=${Math.floor(Date.now() / 1000) - 10}&sig=abc`)).status).toBe(401);
+  });
+
+  it("SEC-4: подписанная ссылка из клиента сохраняется в БД без подписи; внешние URL не трогаются", async () => {
+    const signed = (await request(app).post("/api/uploads").set(bearer(base.master)).attach("file", await scene(4), "b.jpg")).body.url;
+    const external = "https://cdn.example.com/x.jpg?token=abc";
+    const res = await request(app).post("/api/work-orders").set(bearer(base.master)).send({ type: "PLANNED", description: "Фото до", areaId: base.area.id, equipmentId: base.pump.id, assigneeId: base.worker1.id, priority: "NORMAL", normativeId: base.normative.id, beforePhotoUrls: [signed, external] });
+    expect(res.status).toBe(201);
+    const stored = (await prisma.photo.findMany({ where: { workOrderId: res.body.id }, orderBy: { id: "asc" } })).map((p) => p.fileUrl);
+    expect(stored).toEqual([signed.split("?")[0], external]);
+    expect(res.body.photos[0].fileUrl).toMatch(/\?exp=\d+&sig=/); // в ответе снова подписана
+  });
+
   it("загрузка фото: сжатие до 1600px JPEG", async () => {
     const big = await scene(1, { width: 4000, height: 3000 });
     const res = await request(app).post("/api/uploads").set(bearer(base.worker1)).attach("file", big, "photo.jpg");

@@ -3,6 +3,7 @@ import { AiVerdict, Prisma, PhotoType, Role, WorkOrderStatus } from "@prisma/cli
 import { z } from "zod";
 import { nextStatus, type WorkOrderAction } from "../domain/work-order-state.js";
 import { asyncHandler, HttpError } from "../lib/http.js";
+import { normalizePhotoUrl } from "../lib/signed-urls.js";
 import { prisma } from "../lib/prisma.js";
 import { allow, auth } from "../middleware/auth.js";
 import { emitOrderChanged } from "../realtime.js";
@@ -79,7 +80,7 @@ workOrdersRouter.post("/", allow(Role.MASTER, Role.ADMIN), asyncHandler(async (r
     priority: z.enum(["EMERGENCY", "HIGH", "NORMAL", "PLANNED"]),
     normativeId: z.number().int().positive().optional(),
     comment: z.string().optional(),
-    beforePhotoUrls: z.array(z.string()).max(5).default([])
+    beforePhotoUrls: z.array(z.string().transform(normalizePhotoUrl)).max(5).default([])
   }).refine((value) => value.deadline || value.normativeId, { message: "Укажите срок или норматив" }).parse(req.body);
   const equipment = await prisma.equipment.findFirst({ where: { id: input.equipmentId, areaId: input.areaId } });
   const assignee = await prisma.user.findFirst({ where: { id: input.assigneeId, role: Role.EXECUTOR } });
@@ -113,7 +114,7 @@ const actionSchema = z.object({
   comment: z.string().optional(),
   completionText: z.string().optional(),
   faultCodeId: z.number().int().positive().optional(),
-  afterPhotoUrls: z.array(z.string()).max(5).default([]),
+  afterPhotoUrls: z.array(z.string().transform(normalizePhotoUrl)).max(5).default([]),
   materials: z.array(z.object({ materialId: z.number().int().positive(), quantity: z.number().positive() })).default([]),
   masterScore: z.number().int().min(1).max(5).optional()
   ,clientActionId: z.string().min(8).max(100).optional()

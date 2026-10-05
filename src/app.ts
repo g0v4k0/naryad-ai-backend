@@ -24,6 +24,7 @@ import { adminRouter } from "./routes/admin.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { prisma } from "./lib/prisma.js";
 import { config } from "./config.js";
+import { requireUploadAccess, signJsonUploadUrls } from "./lib/signed-urls.js";
 
 mkdirSync("uploads", { recursive: true });
 const upload = multer({ dest: "uploads/", limits: { fileSize: 15 * 1024 * 1024 } });
@@ -34,7 +35,8 @@ app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
 app.use(morgan("dev"));
-app.use("/uploads", express.static(resolve("uploads")));
+app.use(signJsonUploadUrls);
+app.use("/uploads", requireUploadAccess, express.static(resolve("uploads")));
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 app.get("/health/ready", asyncHandler(async (_req, res) => {
   await prisma.$queryRaw`SELECT 1`;

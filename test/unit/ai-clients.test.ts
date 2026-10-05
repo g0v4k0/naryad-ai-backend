@@ -35,7 +35,10 @@ describe("Whisper-клиент", () => {
     await writeFile("voice.bin", Buffer.from("RIFFfake"));
     await expect(transcribeAudio("voice.bin", "audio/wav", "запись.wav")).resolves.toBe("заменить подшипник");
     const call = mocks.whisper.calls[0];
-    expect(call.path).toBe("/transcribe?language=ru");
+    const url = new URL(call.path, "http://x");
+    expect(url.pathname).toBe("/transcribe");
+    expect(url.searchParams.get("language")).toBe("ru");
+    expect(url.searchParams.get("prompt")).toContain("футеровка");
     const raw = call.raw.toString("utf8");
     expect(raw).toContain('name="file"');
     expect(raw).toContain("запись.wav");

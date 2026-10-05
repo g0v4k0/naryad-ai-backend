@@ -30,7 +30,7 @@ Backend полного прототипа кейса «НарядAI»: TypeScrip
 ## Документация
 
 - [docs/FEATURES.md](docs/FEATURES.md) — полное описание функционала, правил, формул и API.
-- [docs/TESTING_AND_RESEARCH.md](docs/TESTING_AND_RESEARCH.md) — автотесты (271, покрытие 97.9%), исследования качества AI, нагрузочные тесты, найденные дефекты, графики.
+- [docs/TESTING_AND_RESEARCH.md](docs/TESTING_AND_RESEARCH.md) — автотесты (273, покрытие 97.9%), исследования качества AI, нагрузочные тесты, найденные дефекты, графики.
 
 ## Развёртывание на сервере
 

@@ -3,6 +3,7 @@ import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import type { Role } from "@prisma/client";
 import { config } from "./config.js";
+import { signUploadUrls } from "./lib/signed-urls.js";
 
 let io: Server | undefined;
 
@@ -30,7 +31,7 @@ export function initRealtime(server: HttpServer) {
 export function emitOrderChanged(order: { assigneeId: number }, extraUserIds: number[] = []) {
   if (!io) return;
   const rooms = [...SUPERVISOR_ROOMS, `user:${order.assigneeId}`, ...extraUserIds.map((id) => `user:${id}`)];
-  io.to(rooms).emit("work-order:changed", order);
+  io.to(rooms).emit("work-order:changed", signUploadUrls(order));
 }
 
 export function emitNotification(userId: number, notification: unknown) {

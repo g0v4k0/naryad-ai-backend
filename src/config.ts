@@ -8,6 +8,8 @@ const schema = z.object({
   OLLAMA_MODEL: z.string().default("gpt-oss:20b"),
   WHISPER_URL: z.string().url().default("http://localhost:8000/v1/audio/transcriptions"),
   WHISPER_MODEL: z.string().default("whisper-1"),
+  // Domain glossary passed as Whisper's initial prompt; empty string disables it.
+  WHISPER_PROMPT: z.string().default("Наряд на ремонт оборудования горно-обогатительного комбината. Подшипник, сальник, сальниковая набивка, грундбукса, редуктор, сапун, муфта, центровка, футеровка, плиты футеровки, дробилка, конусная дробилка, щековая дробилка, конвейер, лента, роликоопора, натяжной барабан, приводной барабан, вулканизация стыка, грохот, питатель, шаровая мельница, гидроциклон, сгуститель, зумпф, пульпопровод, задвижка, насос, электродвигатель, пускатель, концевик, мегаомметр, амортизатор, анкерные болты, РВД, гидросистема, ППР, наряд-допуск, заземление, вибрация."),
   OLLAMA_VISION_MODEL: z.string().default(""),
   AI_STRICT: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
   DEADLINE_REMINDER_MINUTES: z.coerce.number().int().positive().default(30),
@@ -24,6 +26,7 @@ const schema = z.object({
   ,LOGIN_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5)
   ,LOGIN_MAX_ATTEMPTS_PER_IP: z.coerce.number().int().positive().default(30)
   ,LOGIN_LOCK_MINUTES: z.coerce.number().int().positive().default(15)
+  ,UPLOAD_URL_TTL_HOURS: z.coerce.number().int().positive().default(168)
 });
 
 export const config = schema.parse(process.env);
