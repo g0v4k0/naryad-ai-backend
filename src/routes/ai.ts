@@ -12,7 +12,7 @@ aiRouter.use(auth);
 aiRouter.post("/transcribe", upload.single("audio"), asyncHandler(async (req, res) => {
   if (!req.file) throw new HttpError(400, "Передайте аудиофайл в поле audio");
   try {
-    res.json({ text: await transcribeAudio(req.file.path, req.file.mimetype) });
+    res.json({ text: await transcribeAudio(req.file.path, req.file.mimetype, req.file.originalname) });
   } finally {
     await unlink(req.file.path).catch(() => undefined);
   }

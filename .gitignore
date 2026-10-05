@@ -5,3 +5,4 @@ uploads/*
 !uploads/.gitkeep
 coverage
 work
+.DS_Store
