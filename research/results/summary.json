@@ -1,14 +1,14 @@
 {
  "tests": {
-  "total": 271,
-  "passed": 271,
+  "total": 273,
+  "passed": 273,
   "failed": 0,
   "files": 13,
   "coverage": {
-   "lines": 97.92,
-   "statements": 97.92,
-   "functions": 96.82,
-   "branches": 84.53
+   "lines": 97.94,
+   "statements": 97.94,
+   "functions": 97.18,
+   "branches": 85.19
   }
  },
  "r1": {
