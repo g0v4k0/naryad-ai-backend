@@ -1,0 +1,267 @@
+[
+  {
+    "message": "Кто из сварщиков сейчас не занят?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 41,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Нужен человек на аварию, кто может?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 1,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Покажи незагруженных работников смены",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 1,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Қай слесарь бос?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "kk",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 1,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Какие работы мы не успели вовремя?",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 1,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Покажи наряды, у которых вышел срок",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "OVERDUE",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "OVERDUE"
+    }
+  },
+  {
+    "message": "Есть задержки по нарядам?",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 1,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Кешіккен жұмыстар бар ма?",
+    "expected": "OVERDUE",
+    "lang": "kk",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Что делали с дробилкой Д-2 за последние месяцы?",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 1,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Покажи прошлые поломки насоса Н-1",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 1,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Сколько раз чинили К-3 и что меняли?",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "EQUIPMENT_HISTORY",
+    "correct": true,
+    "ms": 1,
+    "raw": {
+      "intent": "EQUIPMENT_HISTORY",
+      "equipmentQuery": "К-3"
+    }
+  },
+  {
+    "message": "Н-1 сорғысы бойынша жұмыстар",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "kk",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Подведи итог работы за сегодня",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Сколько нарядов выдано и закрыто за 12 часов?",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Что успели сделать бригады?",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Бүгінгі жұмыс қорытындысы",
+    "expected": "SHIFT_REPORT",
+    "lang": "kk",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Не списывают ли лишние материалы?",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Есть ли оборудование, которое ломается подозрительно часто?",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "ANOMALIES",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "ANOMALIES"
+    }
+  },
+  {
+    "message": "Проверь, нет ли странных закономерностей в поломках",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Күдікті жөндеулер бар ма?",
+    "expected": "ANOMALIES",
+    "lang": "kk",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Какие узлы скорее всего откажут на следующей неделе?",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Где вероятнее всего будет авария?",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "FAILURE_FORECAST",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "FAILURE_FORECAST"
+    }
+  },
+  {
+    "message": "Оцени риск выхода из строя конвейеров",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "FAILURE_FORECAST",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "FAILURE_FORECAST"
+    }
+  },
+  {
+    "message": "Қай жабдық жақында бұзылуы мүмкін?",
+    "expected": "FAILURE_FORECAST",
+    "lang": "kk",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  }
+]

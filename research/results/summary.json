@@ -1,14 +1,14 @@
 {
  "tests": {
-  "total": 239,
-  "passed": 239,
+  "total": 271,
+  "passed": 271,
   "failed": 0,
   "files": 13,
   "coverage": {
-   "lines": 97.78,
-   "statements": 97.78,
-   "functions": 95.74,
-   "branches": 84.05
+   "lines": 97.92,
+   "statements": 97.92,
+   "functions": 96.82,
+   "branches": 84.53
   }
  },
  "r1": {
@@ -60,8 +60,31 @@
     "mean": 4289.236111111111
    }
   },
+  "after_fix": {
+   "n": 72,
+   "accuracy": 0.9722222222222222,
+   "rework_recall": 1.0,
+   "rework_precision": 0.9473684210526315,
+   "false_rework_rate": 0.05555555555555555,
+   "tp": 36,
+   "fn": 0,
+   "fp": 2,
+   "tn": 34,
+   "latency_ms": {
+    "p50": 4154.5,
+    "p95": 6331,
+    "mean": 4597.611111111111
+   }
+  },
   "consistency_current": 0.7916666666666666,
   "consistency_improved": 0.9583333333333334,
+  "consistency_after": 0.9166666666666666,
+  "english_after": 0,
+  "verdicts_after": {
+   "ACCEPTED": 31,
+   "ACCEPTED_WITH_COMMENTS": 3,
+   "REWORK_REQUIRED": 38
+  },
   "english_explanations": 26,
   "verdicts_current": {
    "ACCEPTED_WITH_COMMENTS": 50,
@@ -111,7 +134,32 @@
     "expected": "FAILURE_FORECAST",
     "predicted": "ANOMALIES"
    }
-  ]
+  ],
+  "after": {
+   "llm_accuracy": 100,
+   "keyword_accuracy": 94.44444444444444,
+   "llm_ru": 100,
+   "llm_kk": 100,
+   "kw_ru": 93.33333333333333,
+   "kw_kk": 100,
+   "llm_latency_ms": {
+    "p50": 1923.5,
+    "max": 3482
+   },
+   "errors": [],
+   "kw_errors": [
+    {
+     "message": "Как часто ломался Оборудование 5?",
+     "expected": "EQUIPMENT_HISTORY",
+     "predicted": "SHIFT_REPORT"
+    },
+    {
+     "message": "Где ждать следующую аварию?",
+     "expected": "FAILURE_FORECAST",
+     "predicted": "SHIFT_REPORT"
+    }
+   ]
+  }
  },
  "r3": {
   "clips": 320,
@@ -241,246 +289,576 @@
   },
   "max_different": 0.84375
  },
- "r5": [
-  {
-   "name": "GET /health",
-   "connections": 1,
-   "rps": 1518.13,
-   "p50": 0,
-   "p90": 0,
-   "p99": 1,
-   "errors": 0,
-   "total": 12145
-  },
-  {
-   "name": "GET /health",
-   "connections": 10,
-   "rps": 2238,
-   "p50": 4,
-   "p90": 6,
-   "p99": 9,
-   "errors": 0,
-   "total": 17901
-  },
-  {
-   "name": "GET /health",
-   "connections": 50,
-   "rps": 2393.5,
-   "p50": 20,
-   "p90": 23,
-   "p99": 31,
-   "errors": 0,
-   "total": 19144
-  },
-  {
-   "name": "GET /references/equipment",
-   "connections": 1,
-   "rps": 247,
-   "p50": 3,
-   "p90": 4,
-   "p99": 5,
-   "errors": 0,
-   "total": 1976
-  },
-  {
-   "name": "GET /references/equipment",
-   "connections": 10,
-   "rps": 1175,
-   "p50": 7,
-   "p90": 11,
-   "p99": 15,
-   "errors": 0,
-   "total": 9400
-  },
-  {
-   "name": "GET /references/equipment",
-   "connections": 50,
-   "rps": 1220.5,
-   "p50": 37,
-   "p90": 69,
-   "p99": 76,
-   "errors": 0,
-   "total": 9764
-  },
-  {
-   "name": "GET /work-orders (200 строк)",
-   "connections": 1,
-   "rps": 11,
-   "p50": 89,
-   "p90": 99,
-   "p99": 108,
-   "errors": 0,
-   "total": 88
-  },
-  {
-   "name": "GET /work-orders (200 строк)",
-   "connections": 10,
-   "rps": 46,
-   "p50": 198,
-   "p90": 303,
-   "p99": 344,
-   "errors": 0,
-   "total": 368
-  },
-  {
-   "name": "GET /work-orders (200 строк)",
-   "connections": 50,
-   "rps": 50,
-   "p50": 900,
-   "p90": 1013,
-   "p99": 1829,
-   "errors": 0,
-   "total": 400
-  },
-  {
-   "name": "GET /analytics/dashboard",
-   "connections": 1,
-   "rps": 46,
-   "p50": 19,
-   "p90": 21,
-   "p99": 30,
-   "errors": 0,
-   "total": 368
-  },
-  {
-   "name": "GET /analytics/dashboard",
-   "connections": 10,
-   "rps": 317.38,
-   "p50": 30,
-   "p90": 38,
-   "p99": 49,
-   "errors": 0,
-   "total": 2539
-  },
-  {
-   "name": "GET /analytics/dashboard",
-   "connections": 50,
-   "rps": 295.5,
-   "p50": 165,
-   "p90": 181,
-   "p99": 241,
-   "errors": 0,
-   "total": 2364
-  },
-  {
-   "name": "GET /reports/ratings",
-   "connections": 1,
-   "rps": 52.5,
-   "p50": 17,
-   "p90": 22,
-   "p99": 25,
-   "errors": 0,
-   "total": 420
-  },
-  {
-   "name": "GET /reports/ratings",
-   "connections": 10,
-   "rps": 313.88,
-   "p50": 31,
-   "p90": 39,
-   "p99": 49,
-   "errors": 0,
-   "total": 2511
-  },
-  {
-   "name": "GET /reports/ratings",
-   "connections": 50,
-   "rps": 430.25,
-   "p50": 115,
-   "p90": 128,
-   "p99": 165,
-   "errors": 0,
-   "total": 3442
-  },
-  {
-   "name": "GET /analytics/failure-forecast",
-   "connections": 1,
-   "rps": 125.63,
-   "p50": 7,
-   "p90": 8,
-   "p99": 11,
-   "errors": 0,
-   "total": 1005
-  },
-  {
-   "name": "GET /analytics/failure-forecast",
-   "connections": 10,
-   "rps": 796.25,
-   "p50": 12,
-   "p90": 15,
-   "p99": 19,
-   "errors": 0,
-   "total": 6370
-  },
-  {
-   "name": "GET /analytics/failure-forecast",
-   "connections": 50,
-   "rps": 862.25,
-   "p50": 57,
-   "p90": 62,
-   "p99": 75,
-   "errors": 0,
-   "total": 6898
-  },
-  {
-   "name": "POST /auth/login (bcrypt)",
-   "connections": 1,
-   "rps": 9.63,
-   "p50": 102,
-   "p90": 109,
-   "p99": 151,
-   "errors": 0,
-   "total": 77
-  },
-  {
-   "name": "POST /auth/login (bcrypt)",
-   "connections": 10,
-   "rps": 8,
-   "p50": 1234,
-   "p90": 1365,
-   "p99": 2315,
-   "errors": 0,
-   "total": 64
-  },
-  {
-   "name": "POST /auth/login (bcrypt)",
-   "connections": 50,
-   "rps": 7.75,
-   "p50": 1455,
-   "p90": 3653,
-   "p99": 6538,
-   "errors": 0,
-   "total": 62
-  }
- ],
- "r6": {
-  "totalOrders": 498,
-  "onTimeRate": 0.8032128514056225,
-  "verdicts": {
-   "REWORK_REQUIRED": 46,
-   "ACCEPTED": 452
-  },
+ "r5": {
+  "after": [
+   {
+    "name": "GET /health",
+    "connections": 1,
+    "rps": 1652.88,
+    "p50": 0,
+    "p90": 0,
+    "p99": 1,
+    "errors": 0,
+    "total": 13223
+   },
+   {
+    "name": "GET /health",
+    "connections": 10,
+    "rps": 2282.25,
+    "p50": 3,
+    "p90": 6,
+    "p99": 8,
+    "errors": 0,
+    "total": 18254
+   },
+   {
+    "name": "GET /health",
+    "connections": 50,
+    "rps": 2012.88,
+    "p50": 24,
+    "p90": 28,
+    "p99": 38,
+    "errors": 0,
+    "total": 16101
+   },
+   {
+    "name": "GET /references/equipment",
+    "connections": 1,
+    "rps": 234.25,
+    "p50": 4,
+    "p90": 4,
+    "p99": 6,
+    "errors": 0,
+    "total": 1874
+   },
+   {
+    "name": "GET /references/equipment",
+    "connections": 10,
+    "rps": 1186.38,
+    "p50": 7,
+    "p90": 10,
+    "p99": 16,
+    "errors": 0,
+    "total": 9491
+   },
+   {
+    "name": "GET /references/equipment",
+    "connections": 50,
+    "rps": 1271.5,
+    "p50": 32,
+    "p90": 55,
+    "p99": 60,
+    "errors": 0,
+    "total": 10172
+   },
+   {
+    "name": "GET /work-orders (200 строк)",
+    "connections": 1,
+    "rps": 11,
+    "p50": 90,
+    "p90": 96,
+    "p99": 119,
+    "errors": 0,
+    "total": 88
+   },
+   {
+    "name": "GET /work-orders (200 строк)",
+    "connections": 10,
+    "rps": 45.88,
+    "p50": 207,
+    "p90": 293,
+    "p99": 342,
+    "errors": 0,
+    "total": 367
+   },
+   {
+    "name": "GET /work-orders (200 строк)",
+    "connections": 50,
+    "rps": 53.75,
+    "p50": 895,
+    "p90": 945,
+    "p99": 1626,
+    "errors": 0,
+    "total": 430
+   },
+   {
+    "name": "GET /work-orders?compact=1&limit=50",
+    "connections": 1,
+    "rps": 32.63,
+    "p50": 26,
+    "p90": 30,
+    "p99": 167,
+    "errors": 0,
+    "total": 261
+   },
+   {
+    "name": "GET /work-orders?compact=1&limit=50",
+    "connections": 10,
+    "rps": 183,
+    "p50": 52,
+    "p90": 63,
+    "p99": 89,
+    "errors": 0,
+    "total": 1464
+   },
+   {
+    "name": "GET /work-orders?compact=1&limit=50",
+    "connections": 50,
+    "rps": 231.25,
+    "p50": 209,
+    "p90": 235,
+    "p99": 656,
+    "errors": 0,
+    "total": 1850
+   },
+   {
+    "name": "GET /analytics/dashboard",
+    "connections": 1,
+    "rps": 50.63,
+    "p50": 19,
+    "p90": 21,
+    "p99": 28,
+    "errors": 0,
+    "total": 405
+   },
+   {
+    "name": "GET /analytics/dashboard",
+    "connections": 10,
+    "rps": 324.5,
+    "p50": 30,
+    "p90": 36,
+    "p99": 48,
+    "errors": 0,
+    "total": 2596
+   },
+   {
+    "name": "GET /analytics/dashboard",
+    "connections": 50,
+    "rps": 299.75,
+    "p50": 164,
+    "p90": 180,
+    "p99": 204,
+    "errors": 0,
+    "total": 2398
+   },
+   {
+    "name": "GET /reports/ratings",
+    "connections": 1,
+    "rps": 56,
+    "p50": 17,
+    "p90": 18,
+    "p99": 24,
+    "errors": 0,
+    "total": 448
+   },
+   {
+    "name": "GET /reports/ratings",
+    "connections": 10,
+    "rps": 319.75,
+    "p50": 30,
+    "p90": 37,
+    "p99": 47,
+    "errors": 0,
+    "total": 2558
+   },
+   {
+    "name": "GET /reports/ratings",
+    "connections": 50,
+    "rps": 431.5,
+    "p50": 113,
+    "p90": 126,
+    "p99": 176,
+    "errors": 0,
+    "total": 3452
+   },
+   {
+    "name": "GET /analytics/failure-forecast",
+    "connections": 1,
+    "rps": 130.25,
+    "p50": 7,
+    "p90": 8,
+    "p99": 10,
+    "errors": 0,
+    "total": 1042
+   },
+   {
+    "name": "GET /analytics/failure-forecast",
+    "connections": 10,
+    "rps": 814.75,
+    "p50": 12,
+    "p90": 15,
+    "p99": 19,
+    "errors": 0,
+    "total": 6518
+   },
+   {
+    "name": "GET /analytics/failure-forecast",
+    "connections": 50,
+    "rps": 881.88,
+    "p50": 55,
+    "p90": 61,
+    "p99": 78,
+    "errors": 0,
+    "total": 7055
+   },
+   {
+    "name": "POST /auth/login",
+    "connections": 1,
+    "rps": 16.38,
+    "p50": 59,
+    "p90": 68,
+    "p99": 86,
+    "errors": 0,
+    "total": 131
+   },
+   {
+    "name": "POST /auth/login",
+    "connections": 10,
+    "rps": 75.38,
+    "p50": 131,
+    "p90": 150,
+    "p99": 160,
+    "errors": 0,
+    "total": 603
+   },
+   {
+    "name": "POST /auth/login",
+    "connections": 50,
+    "rps": 74,
+    "p50": 669,
+    "p90": 687,
+    "p99": 708,
+    "errors": 0,
+    "total": 592
+   }
+  ],
+  "before": [
+   {
+    "name": "GET /health",
+    "connections": 1,
+    "rps": 1518.13,
+    "p50": 0,
+    "p90": 0,
+    "p99": 1,
+    "errors": 0,
+    "total": 12145
+   },
+   {
+    "name": "GET /health",
+    "connections": 10,
+    "rps": 2238,
+    "p50": 4,
+    "p90": 6,
+    "p99": 9,
+    "errors": 0,
+    "total": 17901
+   },
+   {
+    "name": "GET /health",
+    "connections": 50,
+    "rps": 2393.5,
+    "p50": 20,
+    "p90": 23,
+    "p99": 31,
+    "errors": 0,
+    "total": 19144
+   },
+   {
+    "name": "GET /references/equipment",
+    "connections": 1,
+    "rps": 247,
+    "p50": 3,
+    "p90": 4,
+    "p99": 5,
+    "errors": 0,
+    "total": 1976
+   },
+   {
+    "name": "GET /references/equipment",
+    "connections": 10,
+    "rps": 1175,
+    "p50": 7,
+    "p90": 11,
+    "p99": 15,
+    "errors": 0,
+    "total": 9400
+   },
+   {
+    "name": "GET /references/equipment",
+    "connections": 50,
+    "rps": 1220.5,
+    "p50": 37,
+    "p90": 69,
+    "p99": 76,
+    "errors": 0,
+    "total": 9764
+   },
+   {
+    "name": "GET /work-orders (200 строк)",
+    "connections": 1,
+    "rps": 11,
+    "p50": 89,
+    "p90": 99,
+    "p99": 108,
+    "errors": 0,
+    "total": 88
+   },
+   {
+    "name": "GET /work-orders (200 строк)",
+    "connections": 10,
+    "rps": 46,
+    "p50": 198,
+    "p90": 303,
+    "p99": 344,
+    "errors": 0,
+    "total": 368
+   },
+   {
+    "name": "GET /work-orders (200 строк)",
+    "connections": 50,
+    "rps": 50,
+    "p50": 900,
+    "p90": 1013,
+    "p99": 1829,
+    "errors": 0,
+    "total": 400
+   },
+   {
+    "name": "GET /analytics/dashboard",
+    "connections": 1,
+    "rps": 46,
+    "p50": 19,
+    "p90": 21,
+    "p99": 30,
+    "errors": 0,
+    "total": 368
+   },
+   {
+    "name": "GET /analytics/dashboard",
+    "connections": 10,
+    "rps": 317.38,
+    "p50": 30,
+    "p90": 38,
+    "p99": 49,
+    "errors": 0,
+    "total": 2539
+   },
+   {
+    "name": "GET /analytics/dashboard",
+    "connections": 50,
+    "rps": 295.5,
+    "p50": 165,
+    "p90": 181,
+    "p99": 241,
+    "errors": 0,
+    "total": 2364
+   },
+   {
+    "name": "GET /reports/ratings",
+    "connections": 1,
+    "rps": 52.5,
+    "p50": 17,
+    "p90": 22,
+    "p99": 25,
+    "errors": 0,
+    "total": 420
+   },
+   {
+    "name": "GET /reports/ratings",
+    "connections": 10,
+    "rps": 313.88,
+    "p50": 31,
+    "p90": 39,
+    "p99": 49,
+    "errors": 0,
+    "total": 2511
+   },
+   {
+    "name": "GET /reports/ratings",
+    "connections": 50,
+    "rps": 430.25,
+    "p50": 115,
+    "p90": 128,
+    "p99": 165,
+    "errors": 0,
+    "total": 3442
+   },
+   {
+    "name": "GET /analytics/failure-forecast",
+    "connections": 1,
+    "rps": 125.63,
+    "p50": 7,
+    "p90": 8,
+    "p99": 11,
+    "errors": 0,
+    "total": 1005
+   },
+   {
+    "name": "GET /analytics/failure-forecast",
+    "connections": 10,
+    "rps": 796.25,
+    "p50": 12,
+    "p90": 15,
+    "p99": 19,
+    "errors": 0,
+    "total": 6370
+   },
+   {
+    "name": "GET /analytics/failure-forecast",
+    "connections": 50,
+    "rps": 862.25,
+    "p50": 57,
+    "p90": 62,
+    "p99": 75,
+    "errors": 0,
+    "total": 6898
+   },
+   {
+    "name": "POST /auth/login",
+    "connections": 1,
+    "rps": 9.63,
+    "p50": 102,
+    "p90": 109,
+    "p99": 151,
+    "errors": 0,
+    "total": 77
+   },
+   {
+    "name": "POST /auth/login",
+    "connections": 10,
+    "rps": 8,
+    "p50": 1234,
+    "p90": 1365,
+    "p99": 2315,
+    "errors": 0,
+    "total": 64
+   },
+   {
+    "name": "POST /auth/login",
+    "connections": 50,
+    "rps": 7.75,
+    "p50": 1455,
+    "p90": 3653,
+    "p99": 6538,
+    "errors": 0,
+    "total": 62
+   }
+  ]
+ },
+ "r6_before": {
   "anomalies": 51,
   "anomalyTypes": {
    "FAILURE_AFTER_PLANNED_MAINTENANCE": 25,
    "FREQUENT_FAILURES": 1,
    "REPEATED_FAULT": 25
   },
+  "falsePositives": 48,
   "plantedDetected": [
    "FAILURE_AFTER_PLANNED_MAINTENANCE",
    "FREQUENT_FAILURES",
    "REPEATED_FAULT"
   ],
-  "falsePositives": 48,
-  "anomalyMs": 112,
-  "forecastSaturated": 4,
-  "forecastTotal": 19,
   "k3Forecast": {
    "equipmentId": 3,
    "equipment": "Конвейер К-3",
    "recentFailures": 7,
    "previousFailures": 6,
    "growth": 0.16666666666666666,
+   "probability": 0.87
+  },
+  "forecastTop": [
+   {
+    "equipmentId": 9,
+    "equipment": "Оборудование 9",
+    "recentFailures": 3,
+    "previousFailures": 1,
+    "growth": 2,
+    "probability": 0.95
+   },
+   {
+    "equipmentId": 10,
+    "equipment": "Оборудование 10",
+    "recentFailures": 3,
+    "previousFailures": 1,
+    "growth": 2,
+    "probability": 0.95
+   },
+   {
+    "equipmentId": 14,
+    "equipment": "Оборудование 14",
+    "recentFailures": 3,
+    "previousFailures": 1,
+    "growth": 2,
+    "probability": 0.95
+   }
+  ]
+ },
+ "r6": {
+  "forecastTop": [
+   {
+    "equipmentId": 3,
+    "equipment": "Конвейер К-3",
+    "recentFailures": 7,
+    "previousFailures": 6,
+    "growth": 0.1428571428571428,
+    "probability": 0.87
+   },
+   {
+    "equipmentId": 10,
+    "equipment": "Оборудование 10",
+    "recentFailures": 3,
+    "previousFailures": 1,
+    "growth": 1,
+    "probability": 0.84
+   },
+   {
+    "equipmentId": 9,
+    "equipment": "Оборудование 9",
+    "recentFailures": 3,
+    "previousFailures": 1,
+    "growth": 1,
+    "probability": 0.76
+   },
+   {
+    "equipmentId": 14,
+    "equipment": "Оборудование 14",
+    "recentFailures": 3,
+    "previousFailures": 1,
+    "growth": 1,
+    "probability": 0.76
+   },
+   {
+    "equipmentId": 18,
+    "equipment": "Оборудование 18",
+    "recentFailures": 3,
+    "previousFailures": 1,
+    "growth": 1,
+    "probability": 0.76
+   }
+  ],
+  "totalOrders": 498,
+  "onTimeRate": 0.8032128514056225,
+  "verdicts": {
+   "REWORK_REQUIRED": 46,
+   "ACCEPTED": 452
+  },
+  "anomalies": 1,
+  "anomalyTypes": {
+   "FREQUENT_FAILURES": 1
+  },
+  "plantedDetected": [
+   "FREQUENT_FAILURES"
+  ],
+  "falsePositives": 0,
+  "anomalyMs": 103,
+  "forecastSaturated": 0,
+  "forecastTotal": 19,
+  "k3Forecast": {
+   "equipmentId": 3,
+   "equipment": "Конвейер К-3",
+   "recentFailures": 7,
+   "previousFailures": 6,
+   "growth": 0.1428571428571428,
    "probability": 0.87
   },
   "ratings": [

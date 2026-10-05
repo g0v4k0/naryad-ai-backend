@@ -70,7 +70,7 @@ ax.set_xlabel("%")
 save(fig, "coverage.png")
 
 # ---------- R1 AI review ----------
-r1, r1f, r1b = load("r1-ai-review.json"), load("r1-ai-review-fallback.json"), load("r1b-prompt-ab.json")
+r1, r1f, r1b, r1a = load("r1-ai-review.json"), load("r1-ai-review-fallback.json"), load("r1b-prompt-ab.json"), load("r1-ai-review-after.json")
 def metrics(rows):
     tp = sum(1 for r in rows if not r["ok"] and not r["accepted"]); fn = sum(1 for r in rows if not r["ok"] and r["accepted"])
     fp = sum(1 for r in rows if r["ok"] and not r["accepted"]); tn = sum(1 for r in rows if r["ok"] and r["accepted"])
@@ -81,48 +81,55 @@ def consistency(rows):
     by = defaultdict(list)
     for r in rows: by[r["id"]].append(r["accepted"])
     return sum(1 for v in by.values() if len(set(v)) == 1) / len(by)
-summary["r1"] = {"rules_only": metrics(r1f), "llm_current": metrics(r1), "llm_improved_prompt": metrics(r1b),
-                 "consistency_current": consistency(r1), "consistency_improved": consistency(r1b),
+is_english = lambda r: sum(c.isascii() and c.isalpha() for c in r["explanation"]) > 0.5 * max(1, sum(c.isalpha() for c in r["explanation"]))
+summary["r1"] = {"rules_only": metrics(r1f), "llm_current": metrics(r1), "llm_improved_prompt": metrics(r1b), "after_fix": metrics(r1a),
+                 "consistency_current": consistency(r1), "consistency_improved": consistency(r1b), "consistency_after": consistency(r1a),
+                 "english_after": sum(1 for r in r1a if is_english(r)), "verdicts_after": Counter(r["verdict"] for r in r1a),
                  "english_explanations": sum(1 for r in r1 if sum(c.isascii() and c.isalpha() for c in r["explanation"]) > 0.5 * max(1, sum(c.isalpha() for c in r["explanation"]))),
                  "verdicts_current": Counter(r["verdict"] for r in r1)}
 fig, ax = plt.subplots(figsize=(8, 3.4))
 labels = ["Точность (accuracy)", "Полнота доработок (recall)", "Ложные доработки"]
 vals = lambda m: [100 * m["accuracy"], 100 * m["rework_recall"], 100 * m["false_rework_rate"]]
-hbars(ax, labels, [vals(summary["r1"]["rules_only"]), vals(summary["r1"]["llm_current"]), vals(summary["r1"]["llm_improved_prompt"])],
-      ["Только правила (без LLM)", "gpt-oss:20b, текущий промпт", "gpt-oss:20b, улучшенный промпт"], [MUTED, S1, S3], fmt="{:.1f}%", xmax=118)
-ax.set_title("AI-проверка закрытия: 24 кейса × 3 прогона")
+hbars(ax, labels, [vals(summary["r1"]["rules_only"]), vals(summary["r1"]["llm_current"]), vals(summary["r1"]["after_fix"])],
+      ["Только правила (без LLM)", "До исправления", "После исправления"], [MUTED, S2, S1], fmt="{:.1f}%", xmax=118)
+ax.set_title("AI-проверка закрытия: 24 кейса × 3 прогона, реальный код")
 ax.set_xlabel("%")
 save(fig, "ai-review-quality.png")
 
 kinds = list(dict.fromkeys(r["kind"] for r in r1))
 acc_kind = lambda rows, k: 100 * st.mean(r["correct"] for r in rows if r["kind"] == k)
 fig, ax = plt.subplots(figsize=(8, 4.8))
-hbars(ax, kinds, [[acc_kind(r1, k) for k in kinds], [acc_kind(r1b, k) for k in kinds]], ["Текущий промпт", "Улучшенный промпт"], [S1, S3], fmt="{:.0f}%", xmax=115)
+hbars(ax, kinds, [[acc_kind(r1, k) for k in kinds], [acc_kind(r1a, k) for k in kinds]], ["До исправления", "После исправления"], [S2, S1], fmt="{:.0f}%", xmax=115)
 ax.set_title("Верные вердикты по типам отчётов")
 ax.set_xlabel("% верных вердиктов")
 save(fig, "ai-review-by-kind.png")
 
 fig, ax = plt.subplots(figsize=(8, 3))
-ax.hist([r["ms"] / 1000 for r in r1] + [r["ms"] / 1000 for r in r1b], bins=20, color=S1, edgecolor=SURFACE, linewidth=2)
-ax.set_title("Время AI-проверки одного наряда (gpt-oss:20b, RTX 3090)")
+ax.hist([r["ms"] / 1000 for r in r1a], bins=20, color=S1, edgecolor=SURFACE, linewidth=2)
+ax.set_title("Время AI-проверки одного наряда после исправления (gpt-oss:20b, RTX 3090)")
 ax.set_xlabel("секунды"); ax.set_ylabel("нарядов"); ax.grid(axis="x", visible=False)
 save(fig, "ai-review-latency.png")
 
 # ---------- R2 intents ----------
-llm, kw = load("r2-intents-llm.json"), load("r2-intents-keywords.json")
+llm, kw, llma, kwa = load("r2-intents-llm.json"), load("r2-intents-keywords.json"), load("r2-intents-llm-after.json"), load("r2-intents-keywords-after.json")
 intents = list(dict.fromkeys(r["expected"] for r in llm))
 acc = lambda rows, f: 100 * st.mean(r["correct"] for r in rows if f(r))
 summary["r2"] = {"n": len(llm), "llm_accuracy": acc(llm, lambda r: True), "keyword_accuracy": acc(kw, lambda r: True),
                  "llm_ru": acc(llm, lambda r: r["lang"] == "ru"), "llm_kk": acc(llm, lambda r: r["lang"] == "kk"),
                  "kw_ru": acc(kw, lambda r: r["lang"] == "ru"), "kw_kk": acc(kw, lambda r: r["lang"] == "kk"),
                  "llm_latency_ms": {"p50": st.median(r["ms"] for r in llm), "max": max(r["ms"] for r in llm)},
-                 "errors": [{"message": r["message"], "expected": r["expected"], "predicted": r["predicted"]} for r in llm if not r["correct"]]}
-fig, ax = plt.subplots(figsize=(8, 4))
-hbars(ax, intents + ["Русский (30)", "Казахский (6)"],
-      [[acc(llm, lambda r, i=i: r["expected"] == i) for i in intents] + [summary["r2"]["llm_ru"], summary["r2"]["llm_kk"]],
-       [acc(kw, lambda r, i=i: r["expected"] == i) for i in intents] + [summary["r2"]["kw_ru"], summary["r2"]["kw_kk"]]],
-      ["gpt-oss:20b", "Ключевые слова (fallback)"], [S1, MUTED], fmt="{:.0f}%", xmax=115)
-ax.set_title(f"Классификация запросов помощника: LLM {summary['r2']['llm_accuracy']:.1f}% против {summary['r2']['keyword_accuracy']:.1f}%")
+                 "errors": [{"message": r["message"], "expected": r["expected"], "predicted": r["predicted"]} for r in llm if not r["correct"]],
+                 "after": {"llm_accuracy": acc(llma, lambda r: True), "keyword_accuracy": acc(kwa, lambda r: True),
+                           "llm_ru": acc(llma, lambda r: r["lang"] == "ru"), "llm_kk": acc(llma, lambda r: r["lang"] == "kk"),
+                           "kw_ru": acc(kwa, lambda r: r["lang"] == "ru"), "kw_kk": acc(kwa, lambda r: r["lang"] == "kk"),
+                           "llm_latency_ms": {"p50": st.median(r["ms"] for r in llma), "max": max(r["ms"] for r in llma)},
+                           "errors": [{"message": r["message"], "expected": r["expected"], "predicted": r["predicted"]} for r in llma if not r["correct"]],
+                           "kw_errors": [{"message": r["message"], "expected": r["expected"], "predicted": r["predicted"]} for r in kwa if not r["correct"]]}}
+fig, ax = plt.subplots(figsize=(8, 5.2))
+per = lambda rows: [acc(rows, lambda r, i=i: r["expected"] == i) for i in intents] + [acc(rows, lambda r: r["lang"] == "ru"), acc(rows, lambda r: r["lang"] == "kk")]
+hbars(ax, intents + ["Русский (30)", "Казахский (6)"], [per(llm), per(llma), per(kwa)],
+      ["LLM до", "LLM после", "Ключевые слова после"], [S2, S1, MUTED], fmt="{:.0f}%", xmax=115)
+ax.set_title(f"Классификация запросов помощника: LLM {summary['r2']['llm_accuracy']:.1f}% → {summary['r2']['after']['llm_accuracy']:.1f}%")
 ax.set_xlabel("% верно определённых намерений")
 save(fig, "assistant-intents.png")
 
@@ -150,7 +157,7 @@ fig, ax = plt.subplots(figsize=(8, 3.4))
 th = [s["threshold"] for s in p["sweep"]]
 ax.plot(th, [100 * s["tpr"] for s in p["sweep"]], color=S1, linewidth=2, label="Найдено повторов (TPR)")
 ax.plot(th, [100 * s["fpr"] for s in p["sweep"]], color=S2, linewidth=2, label="Ложные срабатывания (FPR)")
-for x, txt in ((0.98, "текущий порог 0.98"), (0.88, "предлагаемый 0.88")):
+for x, txt in ((0.98, "0.98: автодоработка"), (0.88, "0.88: на проверку мастеру")):
     ax.axvline(x, color=MUTED, linewidth=1, linestyle="--")
     ax.text(x - 0.004, 50, txt, rotation=90, va="center", ha="right", fontsize=8, color=INK2)
 ax.set_xlabel("порог сходства"); ax.set_ylabel("%"); ax.legend(loc="center left")
@@ -163,16 +170,16 @@ bp = p["byPair"]
 fig, ax = plt.subplots(figsize=(8, 4))
 lbl = [b["pair"] for b in bp]
 at90 = [100 * sum(1 for r in p["rows"] if r["pair"] == b["pair"] and r["sim"] > 0.88) / b["n"] for b in bp]
-hbars(ax, lbl, [[100 * b["detected"] for b in bp], at90], ["Порог 0.98 (сейчас)", "Порог 0.88"], [S1, S3], fmt="{:.0f}%", xmax=115)
+hbars(ax, lbl, [[100 * b["detected"] for b in bp], at90], ["≥ 0.98: автоматическая доработка", "≥ 0.88: на проверку мастеру"], [S1, S3], fmt="{:.0f}%", xmax=115)
 ax.set_title("Какие подмены фото распознаются как повтор")
 ax.set_xlabel("% пар, помеченных как повтор («другое фото» = ложные срабатывания)", fontsize=9)
 save(fig, "phash-by-transform.png")
 
 # ---------- R5 load ----------
-L = load("r5-load.json")
+L, L0 = load("r5-load-after.json"), load("r5-load.json")
 eps = list(dict.fromkeys(r["name"] for r in L))
 at = lambda c, k: [next(r[k] for r in L if r["name"] == e and r["connections"] == c) for e in eps]
-summary["r5"] = L
+summary["r5"] = {"after": L, "before": L0}
 fig, ax = plt.subplots(figsize=(8, 4.6))
 hbars(ax, eps, [at(10, "rps")], ["RPS"], [S1], fmt="{:.0f}", log=True)
 ax.set_xscale("symlog", linthresh=10); ax.set_xlim(0, 6000)
@@ -187,7 +194,7 @@ ax.set_xlabel("мс (лог. шкала)")
 save(fig, "load-latency.png")
 
 # ---------- R6 analytics ----------
-a = load("r6-analytics.json")
+a0, a = load("r6-analytics.json"), load("r6-analytics-after.json")
 top = a["perEquipment"][:10]
 fig, ax = plt.subplots(figsize=(8, 3.6))
 cols = [S2 if t["name"] == "Конвейер К-3" else S1 for t in top]
@@ -198,7 +205,17 @@ ax.set_title("Нарядов на оборудование, топ-10 (оран�
 ax.set_xlabel("нарядов за 90 дней")
 save(fig, "seed-equipment.png")
 types = Counter(x["type"] for x in a["anomalies"])
-summary["r6"] = {"totalOrders": a["totalOrders"], "onTimeRate": a["onTimeRate"], "verdicts": a["verdicts"], "anomalies": len(a["anomalies"]), "anomalyTypes": types,
+types0 = Counter(x["type"] for x in a0["anomalies"])
+tnames = ["FREQUENT_FAILURES", "REPEATED_FAULT", "FAILURE_AFTER_PLANNED_MAINTENANCE", "MATERIAL_ANOMALY"]
+fig, ax = plt.subplots(figsize=(8, 3.4))
+hbars(ax, ["Частые отказы", "Повторяющийся шифр", "Отказы после ППР", "Расход материалов"], [[types0.get(t, 0) for t in tnames], [types.get(t, 0) for t in tnames]],
+      ["До исправления", "После исправления"], [S2, S1], fmt="{:.0f}", xmax=30)
+ax.set_title(f"Сигналов аномалий на демо-данных: {len(a0['anomalies'])} → {len(a['anomalies'])}")
+ax.set_xlabel("количество сигналов")
+save(fig, "anomalies-before-after.png")
+summary["r6_before"] = {"anomalies": len(a0["anomalies"]), "anomalyTypes": types0, "falsePositives": a0["falsePositives"], "plantedDetected": a0["plantedDetected"],
+                       "k3Forecast": next((f for f in a0["forecast"] if f["equipment"] == "Конвейер К-3"), None), "forecastTop": a0["forecast"][:3]}
+summary["r6"] = {"forecastTop": a["forecast"][:5], "totalOrders": a["totalOrders"], "onTimeRate": a["onTimeRate"], "verdicts": a["verdicts"], "anomalies": len(a["anomalies"]), "anomalyTypes": types,
                  "plantedDetected": a["plantedDetected"], "falsePositives": a["falsePositives"], "anomalyMs": a["anomalyMs"],
                  "forecastSaturated": sum(1 for f in a["forecast"] if f["probability"] >= 0.95), "forecastTotal": len(a["forecast"]),
                  "k3Forecast": next((f for f in a["forecast"] if f["equipment"] == "Конвейер К-3"), None),

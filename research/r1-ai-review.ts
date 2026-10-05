@@ -33,6 +33,21 @@ const cases: Array<{ id: string; problem: string; done: string; ok: boolean; kin
   { id: "B11", problem: "Порыв ленты конвейера", done: "asdf jkl", ok: false, kind: "мусор" },
   { id: "B12", problem: "Перегрев редуктора", done: "Залил воду вместо масла, греться перестал", ok: false, kind: "нарушение технологии" }
 ];
+// Held-out closures written after the prompt was finalized; the prompt never saw them.
+const holdout: typeof cases = [
+  { id: "HG1", problem: "Не запускается насос", done: "Заменён пускатель КМ1, проверено сопротивление обмоток, насос запущен, давление 4 бар", ok: true, kind: "полный отчёт" },
+  { id: "HG2", problem: "Скрип барабана конвейера", done: "Заменены подшипники натяжного барабана, барабан выставлен, скрип отсутствует", ok: true, kind: "полный отчёт" },
+  { id: "HG3", problem: "Трещина рамы дробилки", done: "Трещина разделана и заварена электродами УОНИ, шов зачищен, проверен визуально и молотком", ok: true, kind: "полный отчёт" },
+  { id: "HG4", problem: "Плановая ревизия редуктора", done: "Вскрыт редуктор, зацепление в норме, заменены прокладки и масло, утечек нет", ok: true, kind: "полный отчёт" },
+  { id: "HG5", problem: "Нет освещения на галерее", done: "Поменял два прожектора, свет есть", ok: true, kind: "краткий, но по существу" },
+  { id: "HG6", problem: "Пробуксовка ленты", done: "Подтянул натяжку, буксовки нет", ok: true, kind: "краткий, но по существу" },
+  { id: "HB1", problem: "Не запускается насос", done: "Готово", ok: false, kind: "пустая отписка" },
+  { id: "HB2", problem: "Скрип барабана конвейера", done: "Смазал, скрип остался, нужен подшипник", ok: false, kind: "проблема не устранена" },
+  { id: "HB3", problem: "Трещина рамы дробилки", done: "Нет сварщика, перенёс на следующую смену", ok: false, kind: "работа не выполнена" },
+  { id: "HB4", problem: "Срабатывает концевик ленты", done: "Замкнул концевик накоротко, лента работает", ok: false, kind: "нарушение безопасности" },
+  { id: "HB5", problem: "Перегрев двигателя", done: "Покрасил ограждение", ok: false, kind: "не относится к задаче" },
+  { id: "HB6", problem: "Плановая ревизия редуктора", done: "Проверил снаружи, вроде норм", ok: false, kind: "нет действий" }
+];
 const RUNS = Number(process.env.RUNS ?? 3);
 
 const master = await prisma.user.findUniqueOrThrow({ where: { login: "master" } });
@@ -41,7 +56,7 @@ const equipment = await prisma.equipment.findFirstOrThrow();
 const fault = await prisma.faultCode.findFirstOrThrow();
 const before = await saveUpload("r1-before.jpg", await scene(501));
 const rows = [];
-for (const c of cases) {
+for (const c of process.env.HOLDOUT ? holdout : cases) {
   for (let run = 0; run < RUNS; run++) {
     const after = await saveUpload(`r1-after-${c.id}-${run}.jpg`, await scene(Number(process.env.SEED_OFFSET ?? 1000) + rows.length));
     const order = await prisma.workOrder.create({ data: {
@@ -59,5 +74,5 @@ for (const c of cases) {
     console.log(`${c.id}#${run} ${a.verdict} score=${a.score} ${ms}ms ${accepted === c.ok ? "✓" : "✗"}`);
   }
 }
-writeFileSync(join(resultsDir, `r1-ai-review${process.env.FORCE_OLLAMA_URL ? "-fallback" : ""}.json`), JSON.stringify(rows, null, 2));
+writeFileSync(join(resultsDir, `r1-ai-review${process.env.FORCE_OLLAMA_URL ? "-fallback" : ""}${process.env.OUT_SUFFIX ?? ""}.json`), JSON.stringify(rows, null, 2));
 await prisma.$disconnect();

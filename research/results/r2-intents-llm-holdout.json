@@ -1,0 +1,273 @@
+[
+  {
+    "message": "Кто из сварщиков сейчас не занят?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "FREE_EXECUTORS",
+    "correct": true,
+    "ms": 2781,
+    "raw": {
+      "intent": "FREE_EXECUTORS",
+      "specialty": "Сварщик"
+    }
+  },
+  {
+    "message": "Нужен человек на аварию, кто может?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "FREE_EXECUTORS",
+    "correct": true,
+    "ms": 2851,
+    "raw": {
+      "intent": "FREE_EXECUTORS"
+    }
+  },
+  {
+    "message": "Покажи незагруженных работников смены",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "FREE_EXECUTORS",
+    "correct": true,
+    "ms": 2050,
+    "raw": {
+      "intent": "FREE_EXECUTORS"
+    }
+  },
+  {
+    "message": "Қай слесарь бос?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "kk",
+    "predicted": "FREE_EXECUTORS",
+    "correct": true,
+    "ms": 2130,
+    "raw": {
+      "intent": "FREE_EXECUTORS",
+      "specialty": "Слесарь"
+    }
+  },
+  {
+    "message": "Какие работы мы не успели вовремя?",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "OVERDUE",
+    "correct": true,
+    "ms": 2020,
+    "raw": {
+      "intent": "OVERDUE"
+    }
+  },
+  {
+    "message": "Покажи наряды, у которых вышел срок",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "OVERDUE",
+    "correct": true,
+    "ms": 1654,
+    "raw": {
+      "intent": "OVERDUE"
+    }
+  },
+  {
+    "message": "Есть задержки по нарядам?",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "OVERDUE",
+    "correct": true,
+    "ms": 1793,
+    "raw": {
+      "intent": "OVERDUE"
+    }
+  },
+  {
+    "message": "Кешіккен жұмыстар бар ма?",
+    "expected": "OVERDUE",
+    "lang": "kk",
+    "predicted": "OVERDUE",
+    "correct": true,
+    "ms": 1573,
+    "raw": {
+      "intent": "OVERDUE"
+    }
+  },
+  {
+    "message": "Что делали с дробилкой Д-2 за последние месяцы?",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "EQUIPMENT_HISTORY",
+    "correct": true,
+    "ms": 1976,
+    "raw": {
+      "intent": "EQUIPMENT_HISTORY",
+      "equipmentQuery": "дробилкой Д-2"
+    }
+  },
+  {
+    "message": "Покажи прошлые поломки насоса Н-1",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "EQUIPMENT_HISTORY",
+    "correct": true,
+    "ms": 1921,
+    "raw": {
+      "intent": "EQUIPMENT_HISTORY",
+      "equipmentQuery": "Н-1"
+    }
+  },
+  {
+    "message": "Сколько раз чинили К-3 и что меняли?",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "EQUIPMENT_HISTORY",
+    "correct": true,
+    "ms": 2276,
+    "raw": {
+      "intent": "EQUIPMENT_HISTORY",
+      "equipmentQuery": "К-3"
+    }
+  },
+  {
+    "message": "Н-1 сорғысы бойынша жұмыстар",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "kk",
+    "predicted": "EQUIPMENT_HISTORY",
+    "correct": true,
+    "ms": 2822,
+    "raw": {
+      "intent": "EQUIPMENT_HISTORY",
+      "equipmentQuery": "Н-1"
+    }
+  },
+  {
+    "message": "Подведи итог работы за сегодня",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 1774,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Сколько нарядов выдано и закрыто за 12 часов?",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 1625,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Что успели сделать бригады?",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 1909,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Бүгінгі жұмыс қорытындысы",
+    "expected": "SHIFT_REPORT",
+    "lang": "kk",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 1688,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Не списывают ли лишние материалы?",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "ANOMALIES",
+    "correct": true,
+    "ms": 3106,
+    "raw": {
+      "intent": "ANOMALIES"
+    }
+  },
+  {
+    "message": "Есть ли оборудование, которое ломается подозрительно часто?",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "ANOMALIES",
+    "correct": true,
+    "ms": 2047,
+    "raw": {
+      "intent": "ANOMALIES"
+    }
+  },
+  {
+    "message": "Проверь, нет ли странных закономерностей в поломках",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "ANOMALIES",
+    "correct": true,
+    "ms": 2463,
+    "raw": {
+      "intent": "ANOMALIES"
+    }
+  },
+  {
+    "message": "Күдікті жөндеулер бар ма?",
+    "expected": "ANOMALIES",
+    "lang": "kk",
+    "predicted": "ANOMALIES",
+    "correct": true,
+    "ms": 2556,
+    "raw": {
+      "intent": "ANOMALIES"
+    }
+  },
+  {
+    "message": "Какие узлы скорее всего откажут на следующей неделе?",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "FAILURE_FORECAST",
+    "correct": true,
+    "ms": 2052,
+    "raw": {
+      "intent": "FAILURE_FORECAST"
+    }
+  },
+  {
+    "message": "Где вероятнее всего будет авария?",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "FAILURE_FORECAST",
+    "correct": true,
+    "ms": 1718,
+    "raw": {
+      "intent": "FAILURE_FORECAST"
+    }
+  },
+  {
+    "message": "Оцени риск выхода из строя конвейеров",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "FAILURE_FORECAST",
+    "correct": true,
+    "ms": 2659,
+    "raw": {
+      "intent": "FAILURE_FORECAST",
+      "equipmentQuery": "конвейеров"
+    }
+  },
+  {
+    "message": "Қай жабдық жақында бұзылуы мүмкін?",
+    "expected": "FAILURE_FORECAST",
+    "lang": "kk",
+    "predicted": "FAILURE_FORECAST",
+    "correct": true,
+    "ms": 2332,
+    "raw": {
+      "intent": "FAILURE_FORECAST"
+    }
+  }
+]

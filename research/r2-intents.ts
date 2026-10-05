@@ -24,14 +24,29 @@ const set: Array<[string, string, string]> = [
   ["Какое оборудование в зоне риска?", "FAILURE_FORECAST", "ru"], ["Вероятность поломки конвейеров", "FAILURE_FORECAST", "ru"],
   ["Где ждать следующую аварию?", "FAILURE_FORECAST", "ru"], ["Ақаулар болжамын бер", "FAILURE_FORECAST", "kk"]
 ];
+// Held-out phrases: none of them appear in the classifier prompt or were used to build the keyword list.
+const holdout: Array<[string, string, string]> = [
+  ["Кто из сварщиков сейчас не занят?", "FREE_EXECUTORS", "ru"], ["Нужен человек на аварию, кто может?", "FREE_EXECUTORS", "ru"],
+  ["Покажи незагруженных работников смены", "FREE_EXECUTORS", "ru"], ["Қай слесарь бос?", "FREE_EXECUTORS", "kk"],
+  ["Какие работы мы не успели вовремя?", "OVERDUE", "ru"], ["Покажи наряды, у которых вышел срок", "OVERDUE", "ru"],
+  ["Есть задержки по нарядам?", "OVERDUE", "ru"], ["Кешіккен жұмыстар бар ма?", "OVERDUE", "kk"],
+  ["Что делали с дробилкой Д-2 за последние месяцы?", "EQUIPMENT_HISTORY", "ru"], ["Покажи прошлые поломки насоса Н-1", "EQUIPMENT_HISTORY", "ru"],
+  ["Сколько раз чинили К-3 и что меняли?", "EQUIPMENT_HISTORY", "ru"], ["Н-1 сорғысы бойынша жұмыстар", "EQUIPMENT_HISTORY", "kk"],
+  ["Подведи итог работы за сегодня", "SHIFT_REPORT", "ru"], ["Сколько нарядов выдано и закрыто за 12 часов?", "SHIFT_REPORT", "ru"],
+  ["Что успели сделать бригады?", "SHIFT_REPORT", "ru"], ["Бүгінгі жұмыс қорытындысы", "SHIFT_REPORT", "kk"],
+  ["Не списывают ли лишние материалы?", "ANOMALIES", "ru"], ["Есть ли оборудование, которое ломается подозрительно часто?", "ANOMALIES", "ru"],
+  ["Проверь, нет ли странных закономерностей в поломках", "ANOMALIES", "ru"], ["Күдікті жөндеулер бар ма?", "ANOMALIES", "kk"],
+  ["Какие узлы скорее всего откажут на следующей неделе?", "FAILURE_FORECAST", "ru"], ["Где вероятнее всего будет авария?", "FAILURE_FORECAST", "ru"],
+  ["Оцени риск выхода из строя конвейеров", "FAILURE_FORECAST", "ru"], ["Қай жабдық жақында бұзылуы мүмкін?", "FAILURE_FORECAST", "kk"]
+];
 const mode = process.env.FORCE_OLLAMA_URL ? "keywords" : "llm";
 const rows = [];
-for (const [message, expected, lang] of set) {
+for (const [message, expected, lang] of process.env.HOLDOUT ? holdout : set) {
   const t = performance.now();
   const intent = await classify(message);
   const ms = Math.round(performance.now() - t);
   rows.push({ message, expected, lang, predicted: intent.intent, correct: intent.intent === expected, ms, raw: intent });
   console.log(`${intent.intent === expected ? "✓" : "✗"} ${expected} → ${intent.intent} ${ms}ms  ${message}`);
 }
-writeFileSync(join(resultsDir, `r2-intents-${mode}.json`), JSON.stringify(rows, null, 2));
+writeFileSync(join(resultsDir, `r2-intents-${mode}${process.env.OUT_SUFFIX ?? ""}.json`), JSON.stringify(rows, null, 2));
 await prisma.$disconnect();

@@ -36,5 +36,5 @@ const result = {
   brigades, dashboard
 };
 console.log(JSON.stringify({ totalOrders: result.totalOrders, onTime, verdicts, top: perEquipment.slice(0, 3), anomalies: result.anomalies.map((a) => a.title + " / " + a.type), anomalyMs, forecastTop: forecast.slice(0, 3), ratingsTop: result.ratings.slice(0, 3), ratingsBottom: result.ratings.slice(-2) }, null, 1));
-writeFileSync(join(resultsDir, "r6-analytics.json"), JSON.stringify(result, null, 2));
+writeFileSync(join(resultsDir, `r6-analytics${process.env.OUT_SUFFIX ?? ""}.json`), JSON.stringify(result, null, 2));
 await prisma.$disconnect();

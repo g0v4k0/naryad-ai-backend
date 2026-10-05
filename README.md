@@ -30,7 +30,7 @@ Backend полного прототипа кейса «НарядAI»: TypeScrip
 ## Документация
 
 - [docs/FEATURES.md](docs/FEATURES.md) — полное описание функционала, правил, формул и API.
-- [docs/TESTING_AND_RESEARCH.md](docs/TESTING_AND_RESEARCH.md) — автотесты (239, покрытие 97.8%), исследования качества AI, нагрузочные тесты, найденные дефекты, графики.
+- [docs/TESTING_AND_RESEARCH.md](docs/TESTING_AND_RESEARCH.md) — автотесты (271, покрытие 97.9%), исследования качества AI, нагрузочные тесты, найденные дефекты, графики.
 
 ## Развёртывание на сервере
 
@@ -54,7 +54,7 @@ Whisper запускается отдельно и должен предоста
 
 Проверка: `curl http://localhost:8765/health`.
 
-Тестовые пользователи: `admin`, `master`, `manager`, `worker1` ... `worker15`. ПИН: `1234`.
+Тестовые пользователи: `admin`, `master`, `manager`, `worker1` ... `worker15`. ПИН: `1234` или значение `SEED_PIN`. На сервере ПИН заменены случайными, см. `demo-credentials.local.txt`.
 
 ## Локальный запуск
 
