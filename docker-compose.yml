@@ -1,0 +1,64 @@
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: naryad_ai
+      MYSQL_USER: naryad
+      MYSQL_PASSWORD: naryad
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    restart: "no"
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["until ollama list >/dev/null 2>&1; do sleep 2; done; ollama pull gpt-oss:20b"]
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    environment:
+      PORT: 8765
+      DATABASE_URL: mysql://naryad:naryad@mysql:3306/naryad_ai
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-before-production}
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: gpt-oss:20b
+      WHISPER_URL: ${WHISPER_URL:-http://host.docker.internal:8000/v1/audio/transcriptions}
+      WHISPER_MODEL: whisper-1
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:8765}
+    ports:
+      - "8765:8765"
+    volumes:
+      - uploads_data:/app/uploads
+
+volumes:
+  mysql_data:
+  ollama_data:
+  uploads_data:

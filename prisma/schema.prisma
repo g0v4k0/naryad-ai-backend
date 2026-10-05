@@ -1,0 +1,394 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MASTER
+  EXECUTOR
+  MANAGER
+  ADMIN
+}
+
+enum EmployeeStatus {
+  AVAILABLE
+  BUSY
+  QUEUED
+  OFF_SHIFT
+}
+
+enum WorkType {
+  PLANNED
+  EMERGENCY
+}
+
+enum Priority {
+  EMERGENCY
+  HIGH
+  NORMAL
+  PLANNED
+}
+
+enum WorkOrderStatus {
+  ISSUED
+  ACCEPTED
+  QUEUED
+  REJECTED
+  IN_PROGRESS
+  PAUSED
+  COMPLETED
+  AI_REVIEW
+  REWORK
+  CLOSED
+  CANCELLED
+}
+
+enum PhotoType {
+  BEFORE
+  AFTER
+}
+
+enum AiVerdict {
+  ACCEPTED
+  ACCEPTED_WITH_COMMENTS
+  REWORK_REQUIRED
+}
+
+enum IntegrationEntity {
+  AREA
+  EQUIPMENT
+  BRIGADE
+  EMPLOYEE
+  FAULT_CODE
+  MATERIAL
+  NORMATIVE
+  WORK_ORDER
+}
+
+enum IntegrationDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum IntegrationStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  DEAD
+}
+
+model Area {
+  id              Int              @id @default(autoincrement())
+  name            String           @unique
+  equipment       Equipment[]
+  orders          WorkOrder[]
+  anomalyInsights AnomalyInsight[]
+}
+
+model Equipment {
+  id              Int                 @id @default(autoincrement())
+  name            String
+  inventoryNumber String              @unique
+  type            String
+  criticality     Int                 @default(1)
+  qrToken         String              @unique @default(uuid())
+  areaId          Int
+  area            Area                @relation(fields: [areaId], references: [id])
+  orders          WorkOrder[]
+  downtimes       EquipmentDowntime[]
+  normatives      WorkNormative[]
+  anomalyInsights AnomalyInsight[]
+
+  @@index([areaId])
+}
+
+model Brigade {
+  id      Int    @id @default(autoincrement())
+  name    String @unique
+  members User[]
+}
+
+model User {
+  id                Int                @id @default(autoincrement())
+  login             String             @unique
+  pinHash           String
+  fullName          String
+  role              Role
+  specialty         String?
+  grade             Int?
+  brigadeId         Int?
+  brigade           Brigade?           @relation(fields: [brigadeId], references: [id])
+  employeeStatus    EmployeeStatus     @default(OFF_SHIFT)
+  isOnShift         Boolean            @default(false)
+  language          String             @default("ru")
+  createdOrders     WorkOrder[]        @relation("CreatedOrders")
+  assignedOrders    WorkOrder[]        @relation("AssignedOrders")
+  events            WorkOrderEvent[]
+  photos            Photo[]
+  notifications     Notification[]
+  masterScores      AiAssessment[]     @relation("MasterScores")
+  pushDevices       PushDevice[]
+  assistantMessages AssistantMessage[]
+
+  @@index([role, employeeStatus])
+}
+
+model FaultCode {
+  id            Int             @id @default(autoincrement())
+  code          String          @unique
+  name          String
+  category      String
+  orderClosures WorkOrder[]
+  normatives    WorkNormative[]
+}
+
+model Material {
+  id     Int             @id @default(autoincrement())
+  name   String          @unique
+  unit   String
+  usages MaterialUsage[]
+  norms  MaterialNorm[]
+}
+
+model WorkNormative {
+  id            Int            @id @default(autoincrement())
+  name          String
+  equipmentType String?
+  equipmentId   Int?
+  faultCodeId   Int?
+  hours         Decimal        @db.Decimal(8, 2)
+  equipment     Equipment?     @relation(fields: [equipmentId], references: [id])
+  faultCode     FaultCode?     @relation(fields: [faultCodeId], references: [id])
+  materialNorms MaterialNorm[]
+  orders        WorkOrder[]
+
+  @@index([equipmentType, faultCodeId])
+}
+
+model MaterialNorm {
+  id          Int           @id @default(autoincrement())
+  normativeId Int
+  materialId  Int
+  quantity    Decimal       @db.Decimal(10, 2)
+  normative   WorkNormative @relation(fields: [normativeId], references: [id], onDelete: Cascade)
+  material    Material      @relation(fields: [materialId], references: [id])
+
+  @@unique([normativeId, materialId])
+}
+
+model WorkOrder {
+  id                    Int                @id @default(autoincrement())
+  number                String             @unique
+  type                  WorkType
+  description           String             @db.Text
+  priority              Priority
+  deadline              DateTime
+  status                WorkOrderStatus    @default(ISSUED)
+  comment               String?            @db.Text
+  completionText        String?            @db.Text
+  pauseReason           String?
+  rejectionReason       String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  acceptedAt            DateTime?
+  startedAt             DateTime?
+  completedAt           DateTime?
+  closedAt              DateTime?
+  areaId                Int
+  equipmentId           Int
+  creatorId             Int
+  assigneeId            Int
+  faultCodeId           Int?
+  normativeId           Int?
+  actualDowntimeMinutes Int?
+  area                  Area               @relation(fields: [areaId], references: [id])
+  equipment             Equipment          @relation(fields: [equipmentId], references: [id])
+  creator               User               @relation("CreatedOrders", fields: [creatorId], references: [id])
+  assignee              User               @relation("AssignedOrders", fields: [assigneeId], references: [id])
+  faultCode             FaultCode?         @relation(fields: [faultCodeId], references: [id])
+  normative             WorkNormative?     @relation(fields: [normativeId], references: [id])
+  events                WorkOrderEvent[]
+  photos                Photo[]
+  materialUsages        MaterialUsage[]
+  aiAssessment          AiAssessment?
+  notifications         Notification[]
+  downtime              EquipmentDowntime?
+
+  @@index([status, deadline])
+  @@index([assigneeId, status])
+  @@index([equipmentId, createdAt])
+}
+
+model IntegrationMapping {
+  id         Int               @id @default(autoincrement())
+  entity     IntegrationEntity
+  localId    Int
+  externalId String            @db.VarChar(191)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@unique([entity, localId])
+  @@unique([entity, externalId])
+}
+
+model IntegrationJob {
+  id             Int                  @id @default(autoincrement())
+  direction      IntegrationDirection
+  entity         IntegrationEntity
+  eventType      String
+  localId        Int?
+  externalId     String?
+  idempotencyKey String               @unique
+  payload        Json
+  status         IntegrationStatus    @default(PENDING)
+  attempts       Int                  @default(0)
+  nextAttemptAt  DateTime             @default(now())
+  lastAttemptAt  DateTime?
+  completedAt    DateTime?
+  lastError      String?              @db.Text
+  response       Json?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([entity, localId, createdAt])
+}
+
+model WorkOrderEvent {
+  id             Int              @id @default(autoincrement())
+  workOrderId    Int
+  actorId        Int
+  action         String
+  fromStatus     WorkOrderStatus?
+  toStatus       WorkOrderStatus?
+  comment        String?          @db.Text
+  clientActionId String?          @unique
+  createdAt      DateTime         @default(now())
+  workOrder      WorkOrder        @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  actor          User             @relation(fields: [actorId], references: [id])
+
+  @@index([workOrderId, createdAt])
+}
+
+model Photo {
+  id          Int       @id @default(autoincrement())
+  workOrderId Int
+  authorId    Int
+  type        PhotoType
+  fileUrl     String
+  capturedAt  DateTime  @default(now())
+  contentHash String?
+  metadata    Json?
+  aiScore     Int?
+  aiComment   String?   @db.Text
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  author      User      @relation(fields: [authorId], references: [id])
+}
+
+model MaterialUsage {
+  id          Int       @id @default(autoincrement())
+  workOrderId Int
+  materialId  Int
+  quantity    Decimal   @db.Decimal(10, 2)
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  material    Material  @relation(fields: [materialId], references: [id])
+
+  @@unique([workOrderId, materialId])
+}
+
+model AiAssessment {
+  id            Int       @id @default(autoincrement())
+  workOrderId   Int       @unique
+  verdict       AiVerdict
+  score         Int
+  explanation   String    @db.Text
+  strengths     Json?
+  improvements  Json?
+  rawResponse   Json?
+  confidence    Float?
+  photoScore    Int?
+  photoComment  String?   @db.Text
+  masterScore   Int?
+  masterComment String?   @db.Text
+  reviewedById  Int?
+  createdAt     DateTime  @default(now())
+  workOrder     WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  reviewedBy    User?     @relation("MasterScores", fields: [reviewedById], references: [id])
+}
+
+model Notification {
+  id          Int        @id @default(autoincrement())
+  userId      Int
+  workOrderId Int?
+  type        String
+  title       String
+  message     String     @db.Text
+  isRead      Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+  @@index([workOrderId, type])
+}
+
+model PushDevice {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique @db.VarChar(512)
+  platform  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model EquipmentDowntime {
+  id          Int       @id @default(autoincrement())
+  equipmentId Int
+  workOrderId Int       @unique
+  startedAt   DateTime
+  endedAt     DateTime?
+  reason      String?
+  equipment   Equipment @relation(fields: [equipmentId], references: [id])
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@index([equipmentId, startedAt])
+}
+
+model AnomalyInsight {
+  id             Int        @id @default(autoincrement())
+  type           String
+  title          String
+  description    String     @db.Text
+  recommendation String     @db.Text
+  severity       Int
+  areaId         Int?
+  equipmentId    Int?
+  periodFrom     DateTime
+  periodTo       DateTime
+  evidence       Json
+  createdAt      DateTime   @default(now())
+  area           Area?      @relation(fields: [areaId], references: [id])
+  equipment      Equipment? @relation(fields: [equipmentId], references: [id])
+
+  @@index([createdAt, severity])
+}
+
+model AssistantMessage {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  role      String
+  content   String   @db.Text
+  sources   Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
