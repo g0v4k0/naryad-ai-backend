@@ -27,10 +27,20 @@ export async function suggestFaultAndNormative(description: string, equipmentId:
     prisma.workNormative.findMany({ where: { OR: [{ equipmentId }, { equipmentType: equipment.type }] } })
   ]);
   try {
-    return await askOllama<{ faultCodeId: number | null; normativeId: number | null; estimatedHours: number; explanation: string }>(
+    const raw = await askOllama<{ faultCodeId?: unknown; normativeId?: unknown; estimatedHours?: unknown; explanation?: unknown }>(
       "Выбери только из переданных идентификаторов. Верни JSON faultCodeId, normativeId, estimatedHours, explanation.",
       JSON.stringify({ description, equipment, faultCodes: codes, normatives: norms })
     );
+    // Never hand the client an id that is not in the reference lists.
+    const faultCodeId = codes.some((x) => x.id === raw.faultCodeId) ? raw.faultCodeId as number : null;
+    const normative = norms.find((x) => x.id === raw.normativeId);
+    const hours = Number(raw.estimatedHours);
+    return {
+      faultCodeId,
+      normativeId: normative?.id ?? null,
+      estimatedHours: Number.isFinite(hours) && hours > 0 ? hours : Number(normative?.hours ?? norms[0]?.hours ?? 2),
+      explanation: typeof raw.explanation === "string" ? raw.explanation : "Рекомендация по справочнику"
+    };
   } catch {
     return { faultCodeId: codes[0]?.id ?? null, normativeId: norms[0]?.id ?? null, estimatedHours: Number(norms[0]?.hours ?? 2), explanation: "Базовая рекомендация по справочнику" };
   }

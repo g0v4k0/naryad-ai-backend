@@ -37,7 +37,8 @@ reportsRouter.get("/shift", asyncHandler(async (req, res) => {
   };
   let aiSummary = `За период выдано ${report.issued}, закрыто ${report.closed}, просрочено ${report.overdue}.`;
   try {
-    aiSummary = (await askOllama<{ summary: string }>("Верни JSON summary: краткая производственная сводка на русском без выдуманных фактов.", JSON.stringify(report))).summary;
+    const summary = (await askOllama<{ summary?: unknown }>("Верни JSON summary: краткая производственная сводка на русском без выдуманных фактов.", JSON.stringify(report))).summary;
+    if (typeof summary === "string" && summary.trim()) aiSummary = summary;
   } catch { /* deterministic summary is enough when Ollama is offline */ }
   res.json({ ...report, aiSummary });
 }));

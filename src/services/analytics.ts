@@ -89,7 +89,9 @@ export async function predictFailures(days = 30) {
 
 export async function summarizeInsights(insights: unknown) {
   try {
-    return await askOllama<{ summary: string; recommendations: string[] }>("Сделай краткий производственный вывод на русском. Верни JSON summary и recommendations[].", JSON.stringify(insights));
+    const raw = await askOllama<{ summary?: unknown; recommendations?: unknown }>("Сделай краткий производственный вывод на русском. Верни JSON: summary — строка, recommendations — массив строк.", JSON.stringify(insights));
+    if (typeof raw.summary !== "string" || !raw.summary.trim()) throw new Error("Пустая сводка");
+    return { summary: raw.summary, recommendations: Array.isArray(raw.recommendations) ? raw.recommendations.map(String) : [] };
   } catch {
     return { summary: "Выявлены проблемные единицы оборудования; требуется проверка мастером.", recommendations: ["Проверить оборудование с максимальной частотой отказов"] };
   }

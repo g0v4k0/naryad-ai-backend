@@ -86,6 +86,8 @@ describe("поиск аномалий", () => {
   it("сводка без Ollama — детерминированный текст", async () => {
     mocks.ollama.handler = () => ({ status: 500 });
     expect((await summarizeInsights([])).summary).toContain("проверка мастером");
+    mocks.ollama.handler = () => ollamaReply({ summary: ["массив"], recommendations: "строка" });
+    expect((await summarizeInsights([])).summary).toContain("проверка мастером");
   });
 });
 

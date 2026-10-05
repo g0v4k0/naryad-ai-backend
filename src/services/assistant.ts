@@ -1,8 +1,30 @@
+import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { askOllama } from "./ollama.js";
 import { buildAnomalies, predictFailures } from "./analytics.js";
 
-type Intent = { intent: "FREE_EXECUTORS" | "OVERDUE" | "EQUIPMENT_HISTORY" | "SHIFT_REPORT" | "ANOMALIES" | "FAILURE_FORECAST"; areaId?: number; equipmentId?: number; equipmentQuery?: string; specialty?: string };
+const INTENTS = ["FREE_EXECUTORS", "OVERDUE", "EQUIPMENT_HISTORY", "SHIFT_REPORT", "ANOMALIES", "FAILURE_FORECAST"] as const;
+const optionalText = z.preprocess((v) => typeof v === "string" && v.trim() ? v.trim() : undefined, z.string().optional());
+// Model output is untrusted: values reach Prisma filters, so anything off-schema is dropped.
+const intentSchema = z.object({
+  intent: z.enum(INTENTS),
+  equipmentId: z.preprocess((v) => typeof v === "number" && Number.isInteger(v) && v > 0 ? v : undefined, z.number().optional()),
+  equipmentQuery: optionalText,
+  specialty: optionalText
+});
+type Intent = z.infer<typeof intentSchema>;
+
+/** The model sometimes returns the answer as the raw data array instead of text. */
+function answerText(value: unknown): string | null {
+  if (typeof value === "string") return value.trim() || null;
+  if (Array.isArray(value)) {
+    if (!value.length) return "Ничего не найдено.";
+    return value.map((item) => item && typeof item === "object"
+      ? String((item as Record<string, unknown>).fullName ?? (item as Record<string, unknown>).name ?? (item as Record<string, unknown>).number ?? JSON.stringify(item))
+      : String(item)).join(", ");
+  }
+  return null;
+}
 
 // Examples resolve the boundaries the model confused in R2 (anomalies vs history vs forecast).
 const CLASSIFY_PROMPT = `Определи намерение вопроса мастера смены (русский или казахский). Никогда не создавай SQL.
@@ -26,7 +48,7 @@ const KEYWORDS: Array<[Intent["intent"], RegExp]> = [
 
 export async function classify(message: string): Promise<Intent> {
   try {
-    return await askOllama<Intent>(CLASSIFY_PROMPT, message);
+    return intentSchema.parse(await askOllama<unknown>(CLASSIFY_PROMPT, message));
   } catch {
     const lower = message.toLowerCase();
     const intent = KEYWORDS.find(([, pattern]) => pattern.test(lower))?.[0] ?? "SHIFT_REPORT";
@@ -53,8 +75,10 @@ export async function answerAssistant(userId: number, message: string) {
 
   let answer: string;
   try {
-    const result = await askOllama<{ answer: string }>("Ты помощник мастера смены. Ответь кратко по-русски только на основании DATA. Не выдумывай. Верни JSON answer.", JSON.stringify({ question: message, intent, data }));
-    answer = result.answer;
+    const result = await askOllama<{ answer?: unknown }>("Ты помощник мастера смены. Ответь кратко по-русски только на основании DATA. Не выдумывай. Верни JSON: answer — строка с ответом.", JSON.stringify({ question: message, intent, data }));
+    const text = answerText(result.answer);
+    if (!text) throw new Error("Пустой ответ помощника");
+    answer = text;
   } catch {
     answer = `Результат запроса ${intent.intent}: ${JSON.stringify(data)}`;
   }

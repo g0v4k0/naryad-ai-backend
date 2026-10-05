@@ -63,6 +63,25 @@ describe("AI-помощник мастера", () => {
     for (const intent of ["FREE_EXECUTORS", "OVERDUE", "EQUIPMENT_HISTORY", "SHIFT_REPORT", "ANOMALIES", "FAILURE_FORECAST"]) expect(system).toContain(`- ${intent} —`);
   });
 
+  it("BUG-9: ответ модели массивом вместо строки не ломает помощника", async () => {
+    mocks.ollama.handler = (body) => body.messages[0].content.startsWith("Определи намерение")
+      ? ollamaReply({ intent: "FREE_EXECUTORS", specialty: "Электрик" })
+      : ollamaReply({ answer: [{ id: base.worker2.id, fullName: "Электрик 2" }] });
+    const res = await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message: "Кто свободен из электриков?" });
+    expect(res.status).toBe(200);
+    expect(res.body.answer).toBe("Электрик 2");
+  });
+
+  it("BUG-9: мусор в намерении (неизвестный intent, массив в specialty) → fallback по ключевым словам", async () => {
+    mocks.ollama.handler = (body) => body.messages[0].content.startsWith("Определи намерение")
+      ? ollamaReply({ intent: "DROP_TABLE", specialty: ["x"] })
+      : ollamaReply({ answer: { text: "?" } });
+    const res = await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message: "Что просрочено?" });
+    expect(res.status).toBe(200);
+    expect(res.body.intent.intent).toBe("OVERDUE");
+    expect(res.body.answer).toContain("Результат запроса OVERDUE");
+  });
+
   it("история сохраняется по пользователю", async () => {
     scripted({ intent: "OVERDUE" }, "Нет просрочек");
     await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message: "Что просрочено?" });
@@ -87,6 +106,12 @@ describe("рекомендации", () => {
     expect(res.body.map((x: any) => x.fullName)).toEqual(["Электрик 2", "Слесарь 1"]); // worker3 не на смене
     expect(res.body[0]).toMatchObject({ score: 90, equipmentRating: 5, queue: 0 });
     expect(res.body[1]).toMatchObject({ score: 21, equipmentRating: 3, queue: 1 });
+  });
+
+  it("рекомендация шифра: несуществующие id от модели отбрасываются", async () => {
+    mocks.ollama.handler = () => ollamaReply({ faultCodeId: 9999, normativeId: "abc", estimatedHours: -1, explanation: ["x"] });
+    const res = await request(app).post("/api/recommendations/work").set(bearer(base.master)).send({ description: "Гул", equipmentId: base.pump.id });
+    expect(res.body).toEqual({ faultCodeId: null, normativeId: null, estimatedHours: 2, explanation: "Рекомендация по справочнику" });
   });
 
   it("шифр и норматив: LLM-ответ и fallback по справочнику", async () => {

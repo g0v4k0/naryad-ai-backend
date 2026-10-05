@@ -21,6 +21,8 @@ describe("отчёты", () => {
     expect(res.body).toMatchObject({ issued: 3, completed: 2, closed: 1, overdue: 1, aiSummary: "Смена прошла штатно" });
     mocks.ollama.handler = () => ({ status: 500 });
     expect((await request(app).get("/api/reports/shift").set(bearer(base.master))).body.aiSummary).toBe("За период выдано 3, закрыто 1, просрочено 1.");
+    mocks.ollama.handler = () => ollamaReply({ summary: { text: "не строка" } });
+    expect((await request(app).get("/api/reports/shift").set(bearer(base.master))).body.aiSummary).toBe("За период выдано 3, закрыто 1, просрочено 1.");
   });
 
   it("фильтры отчётов по участку и исполнителю", async () => {
