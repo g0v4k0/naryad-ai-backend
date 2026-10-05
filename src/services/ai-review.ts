@@ -1,16 +1,43 @@
 import { AiVerdict, WorkOrderStatus } from "@prisma/client";
+import { z } from "zod";
 import { config } from "../config.js";
 import { prisma } from "../lib/prisma.js";
 import { askOllama } from "./ollama.js";
 import { analyzeOrderPhotos } from "./photo-analysis.js";
 
-type Review = {
-  verdict: AiVerdict;
-  score: number;
-  explanation: string;
-  strengths: string[];
-  improvements: string[];
-};
+type Review = z.infer<typeof reviewSchema>;
+
+const textList = z.preprocess((v) => typeof v === "string" ? [v] : v, z.array(z.coerce.string())).catch([]);
+// The model's JSON is untrusted: unknown keys (e.g. "comment") or wrong types must not reach Prisma.
+const reviewSchema = z.object({
+  verdict: z.enum(AiVerdict).catch(AiVerdict.ACCEPTED_WITH_COMMENTS),
+  score: z.preprocess((v) => typeof v === "string" && v.trim() ? Number(v) : v, z.number().finite()).catch(3),
+  explanation: z.coerce.string().catch("Модель не дала объяснения"),
+  strengths: textList,
+  improvements: textList
+});
+
+// Measured on 24 labelled closures × 3 runs (docs/TESTING_AND_RESEARCH.md, R1) with the real pipeline;
+// the previous one-line prompt scored 77.8% and accepted "Сделано"-style reports.
+export const REVIEW_PROMPT = `Ты контролёр промышленных ремонтных нарядов горно-обогатительного предприятия. Отвечай только на русском.
+Оцени, устранена ли заявленная проблема, по тексту отчёта исполнителя (поле completed).
+REWORK_REQUIRED, если хотя бы одно верно:
+- отчёт не описывает конкретных действий (например «сделано», «всё ок», «работа выполнена»);
+- работа не выполнена, отложена или выполнена частично;
+- отчёт не относится к заявленной проблеме;
+- проблема осталась (течь осталась, лента продолжает сходить и т.п.);
+- нарушена безопасность или технология (отключена защита, неверные материалы);
+- текст бессмысленный.
+ACCEPTED — конкретные действия устраняют проблему, есть проверка результата. ACCEPTED_WITH_COMMENTS — проблема устранена, но отчёт неполный.
+Фото-оценка вторична: не принимай работу только из-за фото.
+Верни только JSON: verdict, score 1..5, explanation, strengths[], improvements[]. Не выдумывай факты.`;
+
+// Safety bypasses must never depend on the LLM: the model caught "отключил защиту" in only 2 of 3 runs.
+const SAFETY_VIOLATION = /(отключ|обош|обход|замкн|перемкн|перемычк|шунтир|заблокир)\S*\s+(\S+\s+){0,2}(защит|блокировк|заземлен|концевик)|без\s+(заземлен|допуск|наряда-допуска)/i;
+
+export function findSafetyViolation(text: string | null | undefined) {
+  return text ? SAFETY_VIOLATION.exec(text)?.[0] ?? null : null;
+}
 
 export async function reviewWorkOrder(workOrderId: number) {
   const order = await prisma.workOrder.findUniqueOrThrow({
@@ -27,11 +54,12 @@ export async function reviewWorkOrder(workOrderId: number) {
     return norm && Number(usage.quantity) > Number(norm.quantity) * 1.5 ? [`${usage.material.name}: расход выше нормы`] : [];
   });
 
+  const safetyViolation = findSafetyViolation(order.completionText);
   const photoReview = await analyzeOrderPhotos(workOrderId);
   let review: Review;
   try {
-    review = await askOllama<Review>(
-      "Ты контролёр промышленных ремонтных нарядов. Верни только JSON: verdict (ACCEPTED, ACCEPTED_WITH_COMMENTS или REWORK_REQUIRED), score 1..5, explanation, strengths[], improvements[]. Не выдумывай факты.",
+    review = reviewSchema.parse(await askOllama<unknown>(
+      REVIEW_PROMPT,
       JSON.stringify({
         problem: order.description,
         completed: order.completionText,
@@ -45,7 +73,7 @@ export async function reviewWorkOrder(workOrderId: number) {
         materialWarnings,
         missing
       })
-    );
+    ));
   } catch (error) {
     if (config.AI_STRICT) throw error;
     review = missing.length
@@ -62,7 +90,13 @@ export async function reviewWorkOrder(workOrderId: number) {
     review.verdict = AiVerdict.ACCEPTED_WITH_COMMENTS;
     review.explanation = `${review.explanation}. ${materialWarnings.join("; ")}`;
   }
-  if (photoReview.duplicate || photoReview.score <= 2) {
+  if (safetyViolation) {
+    review.verdict = AiVerdict.REWORK_REQUIRED;
+    review.score = 1;
+    review.explanation = `${review.explanation}. Нарушение безопасности в отчёте: «${safetyViolation}»`;
+  }
+  // A missing after-photo is already handled by `missing` (required for emergency orders only).
+  if (photoReview.duplicate || (photoReview.score <= 2 && !photoReview.missing)) {
     review.verdict = AiVerdict.REWORK_REQUIRED;
     review.score = Math.min(review.score, 2);
     review.explanation = `${review.explanation}. Фото: ${photoReview.comment}`;

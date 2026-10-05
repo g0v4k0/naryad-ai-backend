@@ -1,5 +1,5 @@
 import "dotenv/config";
-import bcrypt from "bcryptjs";
+import { hashPin } from "../src/lib/pin.js";
 import { AiVerdict, EmployeeStatus, Priority, PrismaClient, Role, WorkOrderStatus, WorkType, type User } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -41,7 +41,7 @@ async function main() {
 
   const brigades = [];
   for (const name of ["Бригада А", "Бригада Б", "Бригада В"]) brigades.push(await prisma.brigade.create({ data: { name } }));
-  const pinHash = await bcrypt.hash("1234", 10);
+  const pinHash = await hashPin(process.env.SEED_PIN ?? "1234");
   const master = await prisma.user.create({ data: { login: "master", pinHash, fullName: "Мастер смены", role: Role.MASTER, isOnShift: true, employeeStatus: EmployeeStatus.AVAILABLE } });
   await prisma.user.create({ data: { login: "manager", pinHash, fullName: "Начальник участка", role: Role.MANAGER, isOnShift: true, employeeStatus: EmployeeStatus.AVAILABLE } });
   await prisma.user.create({ data: { login: "admin", pinHash, fullName: "Администратор", role: Role.ADMIN, isOnShift: true, employeeStatus: EmployeeStatus.AVAILABLE } });

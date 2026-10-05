@@ -34,7 +34,27 @@ describe("поиск аномалий", () => {
     await insertOrder(base, { status: "CLOSED", type: "EMERGENCY", createdAt: new Date(Date.now() - 8 * day) });
     await insertOrder(base, { status: "CLOSED", type: "EMERGENCY", createdAt: new Date(Date.now() - 6 * day) });
     const insights = await buildAnomalies();
-    expect(insights.find((x) => x.type === "FAILURE_AFTER_PLANNED_MAINTENANCE")).toMatchObject({ severity: 5, evidence: { afterPlanned: 2 } });
+    expect(insights.find((x) => x.type === "FAILURE_AFTER_PLANNED_MAINTENANCE")).toMatchObject({ severity: 5, evidence: { afterPlanned: 2, planned: 1, rate: 2, fleetRate: 0 } });
+  });
+
+  it("повторяющийся шифр не поднимается, если он лишь один из многих (< 40% ремонтов)", async () => {
+    for (let i = 0; i < 10; i++) await insertOrder(base, { status: "CLOSED", faultCodeId: i < 3 ? base.fault.id : base.fault2.id, createdAt: new Date(Date.now() - (i + 1) * day) });
+    for (let i = 0; i < 4; i++) await prisma.faultCode.create({ data: { code: `X-${i}`, name: "x", category: "X" } });
+    const codes = await prisma.faultCode.findMany();
+    await prisma.workOrder.updateMany({ where: { faultCodeId: base.fault2.id }, data: { faultCodeId: null } });
+    const spread = await prisma.workOrder.findMany({ where: { faultCodeId: null } });
+    for (const [i, o] of spread.entries()) await prisma.workOrder.update({ where: { id: o.id }, data: { faultCodeId: codes[2 + (i % 4)].id } });
+    const insights = await buildAnomalies();
+    expect(insights.some((x) => x.type === "REPEATED_FAULT")).toBe(false); // М-01: 3 из 10 = 30%
+  });
+
+  it("отказы после ППР не поднимаются, если у остального парка такая же частота", async () => {
+    for (const equipmentId of [base.pump.id, base.conveyor.id]) {
+      await insertOrder(base, { status: "CLOSED", type: "PLANNED", equipmentId, createdAt: new Date(Date.now() - 10 * day) });
+      await insertOrder(base, { status: "CLOSED", type: "EMERGENCY", equipmentId, createdAt: new Date(Date.now() - 8 * day) });
+      await insertOrder(base, { status: "CLOSED", type: "EMERGENCY", equipmentId, createdAt: new Date(Date.now() - 6 * day) });
+    }
+    expect((await buildAnomalies()).some((x) => x.type === "FAILURE_AFTER_PLANNED_MAINTENANCE")).toBe(false);
   });
 
   it("аномальный расход материала (max > 2× среднего)", async () => {
@@ -83,6 +103,8 @@ describe("прогноз отказов", () => {
     expect(forecast[0].probability).toBe(0.95);
     const pump = forecast.find((x) => x.equipment === "Насос Н-1")!;
     expect(pump).toMatchObject({ recentFailures: 1, previousFailures: 1, growth: 0 });
+    // рост сглажен: 3 после 0 → (3+1)/(0+1)−1 = 3, ограничен 1
+    expect(conveyor.growth).toBe(1);
   });
 });
 

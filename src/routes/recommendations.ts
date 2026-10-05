@@ -6,7 +6,10 @@ import { recommendExecutors, suggestFaultAndNormative } from "../services/recomm
 
 export const recommendationsRouter = Router();
 recommendationsRouter.use(auth);
-recommendationsRouter.get("/executors", asyncHandler(async (req, res) => res.json(await recommendExecutors(Number(req.query.equipmentId)))));
+recommendationsRouter.get("/executors", asyncHandler(async (req, res) => {
+  const { equipmentId } = z.object({ equipmentId: z.coerce.number().int().positive() }).parse(req.query);
+  res.json(await recommendExecutors(equipmentId));
+}));
 recommendationsRouter.post("/work", asyncHandler(async (req, res) => {
   const input = z.object({ description: z.string().min(3), equipmentId: z.number().int().positive() }).parse(req.body);
   res.json(await suggestFaultAndNormative(input.description, input.equipmentId));

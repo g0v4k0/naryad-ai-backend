@@ -4,16 +4,35 @@ import { buildAnomalies, predictFailures } from "./analytics.js";
 
 type Intent = { intent: "FREE_EXECUTORS" | "OVERDUE" | "EQUIPMENT_HISTORY" | "SHIFT_REPORT" | "ANOMALIES" | "FAILURE_FORECAST"; areaId?: number; equipmentId?: number; equipmentQuery?: string; specialty?: string };
 
+// Examples resolve the boundaries the model confused in R2 (anomalies vs history vs forecast).
+const CLASSIFY_PROMPT = `Определи намерение вопроса мастера смены (русский или казахский). Никогда не создавай SQL.
+Верни только JSON: intent и необязательные specialty (Слесарь, Электрик, Сварщик), equipmentQuery (название или номер оборудования).
+Намерения:
+- FREE_EXECUTORS — кто свободен, кого отправить. «Есть свободные слесари?», «Кого можно отправить на насос?», «Бос электриктер бар ма?»
+- OVERDUE — наряды с истёкшим сроком, опоздания. «Что просрочено?», «Что горит по времени?», «Мерзімі өтіп кеткен наряд қайсы?»
+- EQUIPMENT_HISTORY — ремонты конкретного оборудования. «История К-3», «Покажи все наряды по дробилке Д-2», «Что чинили на насосе Н-1?»
+- SHIFT_REPORT — итоги смены, сколько сделано. «Как прошла смена?», «Сколько закрыли сегодня?», «Ауысым қалай өтті?»
+- ANOMALIES — подозрительное по всему парку: повторы одних поломок, отказы после ППР, перерасход материалов. «Где повторяются одни и те же поломки?», «Какие отказы после ППР?», «Ауытқуларды көрсет»
+- FAILURE_FORECAST — что сломается в будущем, риск. «Какое оборудование в зоне риска?», «Что сломается в ближайший месяц?», «Ақаулар болжамын бер»`;
+
+const KEYWORDS: Array<[Intent["intent"], RegExp]> = [
+  ["FREE_EXECUTORS", /свобод|без работы|доступн|отправить|бос /],
+  ["OVERDUE", /просроч|срок|опазд|дедлайн|горит|мерзім/],
+  ["FAILURE_FORECAST", /прогноз|риск|сломает|вероятн|ожидать|болжам/],
+  ["ANOMALIES", /аномал|проблем|подозрит|странност|повторя|после ппр|ауытқу/],
+  ["EQUIPMENT_HISTORY", /истори|чинили|ремонтировал|наряды по|тарих/],
+  ["SHIFT_REPORT", /смен|сводк|итог|отчёт|отчет|закрыли|ауысым/]
+];
+
 export async function classify(message: string): Promise<Intent> {
   try {
-    return await askOllama<Intent>("Определи намерение. Верни только JSON intent из FREE_EXECUTORS, OVERDUE, EQUIPMENT_HISTORY, SHIFT_REPORT, ANOMALIES, FAILURE_FORECAST и необязательные specialty, equipmentQuery. Никогда не создавай SQL.", message);
+    return await askOllama<Intent>(CLASSIFY_PROMPT, message);
   } catch {
     const lower = message.toLowerCase();
-    if (lower.includes("свобод")) return { intent: "FREE_EXECUTORS", specialty: lower.includes("электрик") ? "Электрик" : undefined };
-    if (lower.includes("просроч")) return { intent: "OVERDUE" };
-    if (lower.includes("прогноз")) return { intent: "FAILURE_FORECAST" };
-    if (lower.includes("аномал") || lower.includes("проблем")) return { intent: "ANOMALIES" };
-    return { intent: "SHIFT_REPORT" };
+    const intent = KEYWORDS.find(([, pattern]) => pattern.test(lower))?.[0] ?? "SHIFT_REPORT";
+    if (intent === "FREE_EXECUTORS") return { intent, specialty: lower.includes("электрик") ? "Электрик" : lower.includes("слесар") ? "Слесарь" : lower.includes("сварщик") ? "Сварщик" : undefined };
+    if (intent === "EQUIPMENT_HISTORY") return { intent, equipmentQuery: message.match(/[A-ZА-ЯЁ]-?\d+/u)?.[0] };
+    return { intent };
   }
 }
 

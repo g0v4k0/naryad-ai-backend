@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import bcrypt from "bcryptjs";
+import { hashPin } from "../lib/pin.js";
 import { IntegrationEntity, IntegrationStatus, Prisma, Role, WorkOrderStatus } from "@prisma/client";
 import { config } from "../config.js";
+import { HttpError } from "../lib/http.js";
 import { prisma } from "../lib/prisma.js";
 import cron from "node-cron";
 
@@ -67,7 +68,7 @@ async function importItem(entity: IntegrationEntity, item: ImportItem) {
     const data = { login, fullName: text(item.fullName, "fullName"), role, specialty: item.specialty ? String(item.specialty) : null, grade: item.grade ? Number(item.grade) : null, brigadeId: brigadeMap?.localId ?? null, isOnShift: Boolean(item.isOnShift), language: String(item.language ?? "ru") };
     const row = current
       ? await prisma.user.update({ where: { id: current.localId }, data })
-      : await prisma.user.upsert({ where: { login }, create: { ...data, pinHash: await bcrypt.hash(randomUUID(), 10) }, update: data });
+      : await prisma.user.upsert({ where: { login }, create: { ...data, pinHash: await hashPin(randomUUID()) }, update: data });
     localId = row.id;
   } else if (entity === "NORMATIVE") {
     const equipmentMap = item.equipmentExternalId ? await mapping("EQUIPMENT", String(item.equipmentExternalId)) : null;
@@ -103,7 +104,13 @@ export async function importFromOneC(requestId: string, entity: IntegrationEntit
     : await prisma.integrationJob.create({ data: { direction: "INBOUND", entity, eventType: "UPSERT_BATCH", idempotencyKey, payload: items as Prisma.InputJsonValue, status: "PROCESSING", attempts: 1, lastAttemptAt: new Date() } });
   try {
     const results = [];
-    for (const item of items) results.push(await importItem(entity, item));
+    for (const item of items) {
+      try {
+        results.push(await importItem(entity, item));
+      } catch (error) {
+        throw new HttpError(422, `Элемент ${item.externalId}: ${(error as Error).message}`);
+      }
+    }
     const response = { requestId, imported: results.length, items: results };
     await prisma.integrationJob.update({ where: { id: job.id }, data: { status: "SUCCESS", completedAt: new Date(), response } });
     return response;

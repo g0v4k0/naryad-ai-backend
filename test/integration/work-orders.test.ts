@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { app } from "../../src/app.js";
 import { prisma } from "../../src/lib/prisma.js";
 import { bearer, insertOrder, seedBase, type Base } from "../helpers/db.js";
-import { mocks, ollamaReply } from "../helpers/mocks.js";
 
 let base: Base;
 beforeEach(async () => { base = await seedBase(); });
@@ -46,7 +45,7 @@ describe("создание наряда", () => {
     ["несуществующий норматив", { normativeId: 999 }, 400],
     ["короткое описание", { description: "ab" }, 400],
     ["больше 5 фото до", { beforePhotoUrls: ["a", "b", "c", "d", "e", "f"] }, 400]
-  ])("валидация: %s → %i", async (_name, overrides, status) => {
+  ])("валидация: %s → %s", async (_name, overrides, status) => {
     const body = { type: "PLANNED", description: "Шум подшипника", areaId: base.area.id, equipmentId: base.pump.id, assigneeId: base.worker1.id, priority: "NORMAL", normativeId: base.normative.id, ...overrides };
     if ("equipmentId" in overrides) body.equipmentId = base.crusher.id;
     if ("assigneeId" in overrides) body.assigneeId = base.master.id;
@@ -141,15 +140,30 @@ describe("офлайн-идемпотентность", () => {
     expect(await prisma.workOrderEvent.count({ where: { workOrderId: order.id, action: "ACCEPT" } })).toBe(1);
   });
 
-  it("20 параллельных повторов одного действия → одно событие", async () => {
+  it("20 параллельных повторов одного действия → одно событие, все ответы 200", async () => {
     const order = await createOrder();
     const results = await Promise.all(Array.from({ length: 20 }, () => act(order.id, base.worker1, { action: "ACCEPT", clientActionId: "burst-abcdefgh" })));
-    expect(results.filter((r) => r.status === 200).length).toBeGreaterThanOrEqual(1);
+    expect(results.map((r) => r.status)).toEqual(Array(20).fill(200));
+    expect(results.filter((r) => r.body.replayed).length).toBe(19);
     expect(await prisma.workOrderEvent.count({ where: { workOrderId: order.id, action: "ACCEPT" } })).toBe(1);
   });
 });
 
 describe("списки, правка, переназначение", () => {
+  it("пагинация: limit, offset, x-total-count, компактный вид без фото и материалов", async () => {
+    for (let i = 0; i < 5; i++) await insertOrder(base, { priority: "NORMAL" });
+    const page = await request(app).get("/api/work-orders?limit=2&offset=1").set(bearer(base.master));
+    expect(page.headers["x-total-count"]).toBe("5");
+    expect(page.body).toHaveLength(2);
+    const all = (await request(app).get("/api/work-orders").set(bearer(base.master))).body;
+    expect(page.body.map((x: any) => x.id)).toEqual(all.slice(1, 3).map((x: any) => x.id));
+    const compact = (await request(app).get("/api/work-orders?compact=1").set(bearer(base.master))).body;
+    expect(compact[0].photos).toBeUndefined();
+    expect(compact[0].materialUsages).toBeUndefined();
+    expect(compact[0].equipment.name).toBeDefined();
+    expect((await request(app).get("/api/work-orders?limit=501").set(bearer(base.master))).status).toBe(400);
+  });
+
   it("исполнитель видит только свои наряды; фильтр по статусу; сортировка по приоритету", async () => {
     await insertOrder(base, { priority: "PLANNED", assigneeId: base.worker1.id });
     await insertOrder(base, { priority: "EMERGENCY", assigneeId: base.worker1.id });
@@ -186,28 +200,36 @@ describe("списки, правка, переназначение", () => {
   });
 });
 
-describe("известные дефекты (тест документирует ожидаемое поведение; it.fails = дефект подтверждён)", () => {
-  it.fails("BUG-1: переназначение закрытого наряда должно быть запрещено", async () => {
-    const order = await insertOrder(base, { status: "CLOSED" });
+describe("исправленные дефекты", () => {
+  it.each(["COMPLETED", "AI_REVIEW", "CLOSED", "CANCELLED"] as const)("BUG-1: наряд в статусе %s нельзя переназначить (409)", async (status) => {
+    const order = await insertOrder(base, { status });
     const res = await request(app).post(`/api/work-orders/${order.id}/reassign`).set(bearer(base.master)).send({ assigneeId: base.worker2.id });
     expect(res.status).toBe(409);
+    expect((await prisma.workOrder.findUniqueOrThrow({ where: { id: order.id } })).assigneeId).toBe(base.worker1.id);
   });
 
-  it.fails("BUG-2: переназначение на не-исполнителя должно давать 400", async () => {
+  it("BUG-1: отклонённый наряд можно переназначить; несуществующий → 404", async () => {
+    const order = await insertOrder(base, { status: "REJECTED" });
+    expect((await request(app).post(`/api/work-orders/${order.id}/reassign`).set(bearer(base.master)).send({ assigneeId: base.worker2.id })).body.status).toBe("ISSUED");
+    expect((await request(app).post("/api/work-orders/999999/reassign").set(bearer(base.master)).send({ assigneeId: base.worker2.id })).status).toBe(404);
+  });
+
+  it("BUG-2: переназначение на не-исполнителя → 400", async () => {
     const order = await createOrder();
     const res = await request(app).post(`/api/work-orders/${order.id}/reassign`).set(bearer(base.master)).send({ assigneeId: base.manager.id });
     expect(res.status).toBe(400);
   });
 
-  it.fails("BUG-3: PATCH несуществующего наряда должен давать 404, а не 500", async () => {
+  it("BUG-3: PATCH несуществующего наряда → 404", async () => {
     const res = await request(app).patch("/api/work-orders/999999").set(bearer(base.master)).send({ priority: "HIGH" });
     expect(res.status).toBe(404);
   });
 
-  it("BUG-4: CLOSE с masterScore без AI-оценки — проверка текущего поведения", async () => {
-    mocks.ollama.handler = () => ollamaReply({ verdict: "ACCEPTED", score: 5, explanation: "ok", strengths: [], improvements: [] });
+  it("BUG-4: CLOSE с masterScore без AI-оценки сохраняет оценку мастера", async () => {
     const order = await insertOrder(base, { status: "AI_REVIEW" });
-    const res = await act(order.id, base.master, { action: "CLOSE", masterScore: 4 });
-    expect(res.status).toBe(500); // aiAssessment.update на отсутствующей записи
+    const res = await act(order.id, base.master, { action: "CLOSE", masterScore: 4, comment: "Импорт из 1С" });
+    expect(res.status).toBe(200);
+    expect(res.body.order.status).toBe("CLOSED");
+    expect(await prisma.aiAssessment.findUniqueOrThrow({ where: { workOrderId: order.id } })).toMatchObject({ masterScore: 4, score: 4, reviewedById: base.master.id, explanation: "Оценка мастера без AI-проверки" });
   });
 });

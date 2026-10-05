@@ -43,6 +43,12 @@ describe("vision-модель", () => {
     expect(r.comment).toContain("снят защитный кожух");
   });
 
+  it("BUG-8: строковые числа и лишние поля vision-модели нормализуются", async () => {
+    mocks.ollama.handler = () => ollamaReply({ score: "5", confidence: "0.8", comment: 42, sameEquipment: true, safetyIssues: "нет", extra: { a: 1 } });
+    const r = await analyzeOrderPhotos((await orderWithPhotos(140)).id);
+    expect(r).toMatchObject({ score: 5, confidence: 0.8, comment: "Оценка vision-модели", duplicate: false });
+  });
+
   it("сбой vision-модели → эвристика score 4", async () => {
     mocks.ollama.handler = () => ({ json: { message: { content: "{broken" } } });
     const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);

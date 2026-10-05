@@ -34,7 +34,9 @@ Object.assign(process.env, {
 // uploads/ is resolved relative to cwd; keep test files out of the deployed uploads volume.
 process.chdir(mkdtempSync(join(tmpdir(), "naryad-test-")));
 
-beforeEach(() => {
+beforeEach(async () => {
+  const { resetLoginThrottle } = await import("../src/lib/login-throttle.js");
+  resetLoginThrottle();
   mocks.ollama.reset();
   mocks.whisper.reset();
   mocks.oneC.reset();

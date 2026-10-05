@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../src/lib/prisma.js";
-import { reviewWorkOrder } from "../../src/services/ai-review.js";
+import { findSafetyViolation, REVIEW_PROMPT, reviewWorkOrder } from "../../src/services/ai-review.js";
 import { analyzeOrderPhotos } from "../../src/services/photo-analysis.js";
 import { insertOrder, seedBase, type Base } from "../helpers/db.js";
 import { saveUpload, scene } from "../helpers/images.js";
@@ -78,10 +78,60 @@ describe("AI-проверка закрытия", () => {
     expect((await reviewWorkOrder(order.id)).score).toBe(5);
   });
 
-  it.fails("BUG-5: плановый наряд без фото (фото не обязательно) не должен автоматически уходить в REWORK", async () => {
+  it("BUG-8: лишние ключи и неверные типы в ответе LLM не ломают сохранение", async () => {
+    mocks.ollama.handler = () => ollamaReply({ verdict: "ACCEPTED", score: "4", explanation: "ok", strengths: "Описание полное", improvements: null, comment: "лишнее поле", confidence: 0.9 });
+    const a = await reviewWorkOrder((await completedOrder()).id);
+    expect(a).toMatchObject({ verdict: "ACCEPTED", score: 4, strengths: ["Описание полное"], improvements: [] });
+  });
+
+  it("BUG-8: неизвестный вердикт LLM → ACCEPTED_WITH_COMMENTS (решает мастер)", async () => {
+    mocks.ollama.handler = () => ollamaReply({ verdict: "MAYBE", score: null });
+    const a = await reviewWorkOrder((await completedOrder()).id);
+    expect(a).toMatchObject({ verdict: "ACCEPTED_WITH_COMMENTS", score: 3 });
+  });
+
+  it("BUG-5: плановый наряд без фото не уходит в доработку автоматически", async () => {
     mocks.ollama.handler = () => ollamaReply(good);
     const order = await completedOrder({ type: "PLANNED" });
-    expect((await reviewWorkOrder(order.id)).verdict).not.toBe("REWORK_REQUIRED");
+    expect((await reviewWorkOrder(order.id)).verdict).toBe("ACCEPTED");
+  });
+
+  it("аварийный наряд без фото после — по-прежнему доработка", async () => {
+    mocks.ollama.handler = () => ollamaReply(good);
+    const order = await completedOrder({ type: "EMERGENCY" });
+    const a = await reviewWorkOrder(order.id);
+    expect(a.verdict).toBe("REWORK_REQUIRED");
+    expect(a.explanation).toContain("фото после");
+  });
+
+  it("в LLM уходит промпт с критериями доработки и требованием русского языка", async () => {
+    mocks.ollama.handler = () => ollamaReply(good);
+    await reviewWorkOrder((await completedOrder()).id);
+    const system = mocks.ollama.calls[0].body.messages[0].content;
+    expect(system).toBe(REVIEW_PROMPT);
+    expect(system).toContain("Отвечай только на русском");
+    expect(system).toContain("«сделано»");
+  });
+
+  it.each([
+    "Отключил защиту, двигатель теперь работает",
+    "Поставил перемычку на концевик, конвейер работает",
+    "Работали без наряда-допуска, всё заменили",
+    "Замкнул концевик накоротко, лента работает"
+  ])("нарушение безопасности «%s» → доработка, балл 1, даже если LLM принял", async (text) => {
+    mocks.ollama.handler = () => ollamaReply(good);
+    const a = await reviewWorkOrder((await completedOrder({ completionText: text })).id);
+    expect(a).toMatchObject({ verdict: "REWORK_REQUIRED", score: 1 });
+    expect(a.explanation).toContain("Нарушение безопасности");
+  });
+
+  it.each([
+    "Отключил питание, заменил автомат 16А, включил",
+    "Снят защитный кожух, заменён ремень, кожух установлен",
+    "Проверены токи, защита больше не срабатывает",
+    "Замкнул контакты пускателя после зачистки, двигатель запущен"
+  ])("нормальная процедура «%s» не считается нарушением", (text) => {
+    expect(findSafetyViolation(text)).toBeNull();
   });
 });
 
@@ -109,6 +159,28 @@ describe("анализ фото", () => {
     const r = await analyzeOrderPhotos(order.id);
     expect(r.duplicate).toBe(true);
     expect("visualSimilarity" in r && r.visualSimilarity).toBeGreaterThan(0.98);
+  });
+
+  it("похожие (0.88–0.98) фото до/после → подозрение для мастера, без автоматической доработки", async () => {
+    mocks.ollama.handler = () => ollamaReply(good);
+    const img = await scene(17);
+    const brighter = await sharp(img).modulate({ brightness: 1.25 }).jpeg().toBuffer();
+    const order = await completedOrder({}, [{ type: "BEFORE", url: await saveUpload("s1.jpg", img) }, { type: "AFTER", url: await saveUpload("s2.jpg", brighter) }]);
+    const r = await analyzeOrderPhotos(order.id);
+    expect(r).toMatchObject({ score: 3, duplicate: false, suspicious: true });
+    expect(r.comment).toContain("очень похожи");
+    expect((await reviewWorkOrder(order.id)).verdict).not.toBe("REWORK_REQUIRED");
+  });
+
+  it("фото после похоже на фото из прошлого наряда по тому же оборудованию → подозрение", async () => {
+    const old = await scene(18);
+    const first = await completedOrder({}, [{ type: "AFTER", url: await saveUpload("o1.jpg", old) }]);
+    await analyzeOrderPhotos(first.id);
+    const cropped = await sharp(old).extract({ left: 16, top: 12, width: 608, height: 456 }).jpeg({ quality: 60 }).toBuffer();
+    const second = await completedOrder({}, [{ type: "BEFORE", url: await saveUpload("o0.jpg", await scene(19)) }, { type: "AFTER", url: await saveUpload("o2.jpg", cropped) }]);
+    const r = await analyzeOrderPhotos(second.id);
+    expect(r).toMatchObject({ score: 3, suspicious: true });
+    expect(r.comment).toContain(`наряда ${first.id}`);
   });
 
   it("фото после уже использовано в другом наряде → дубликат и REWORK", async () => {

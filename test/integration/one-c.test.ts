@@ -48,10 +48,11 @@ describe("1С: входящий импорт", () => {
     expect((await prisma.area.findFirstOrThrow()).name).toBe("Изменено локально");
   });
 
-  it("ошибка элемента помечает задание FAILED", async () => {
+  it("ошибка элемента → 422 с externalId элемента, задание FAILED", async () => {
     const res = await imp("EQUIPMENT", [{ externalId: "E9", name: "Без участка", inventoryNumber: "I", type: "T", areaExternalId: "NOPE" }], "fail-request-1");
-    expect(res.status).toBe(500);
-    expect(await prisma.integrationJob.findUnique({ where: { idempotencyKey: "1c:in:fail-request-1" } })).toMatchObject({ status: "FAILED", lastError: "Не найден участок 1С NOPE" });
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe("Элемент E9: Не найден участок 1С NOPE");
+    expect(await prisma.integrationJob.findUnique({ where: { idempotencyKey: "1c:in:fail-request-1" } })).toMatchObject({ status: "FAILED", lastError: "Элемент E9: Не найден участок 1С NOPE" });
   });
 
   it("валидация пакета", async () => {

@@ -46,12 +46,21 @@ describe("AI-помощник мастера", () => {
 
   it.each([
     ["Кто свободен из электриков?", "FREE_EXECUTORS"], ["Что просрочено?", "OVERDUE"],
-    ["Дай прогноз отказов", "FAILURE_FORECAST"], ["Покажи аномалии", "ANOMALIES"], ["Как прошла смена", "SHIFT_REPORT"]
+    ["Дай прогноз отказов", "FAILURE_FORECAST"], ["Покажи аномалии", "ANOMALIES"], ["Как прошла смена", "SHIFT_REPORT"],
+    ["Что горит по времени?", "OVERDUE"], ["История ремонтов К-3", "EQUIPMENT_HISTORY"], ["Какое оборудование в зоне риска?", "FAILURE_FORECAST"],
+    ["Где повторяются одни и те же поломки?", "ANOMALIES"], ["Мерзімі өтіп кеткен наряд қайсы?", "OVERDUE"]
   ])("без Ollama: «%s» → %s по ключевым словам", async (message, intent) => {
     mocks.ollama.handler = () => ({ status: 503 });
     const res = await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message });
     expect(res.body.intent.intent).toBe(intent);
     expect(res.body.answer).toContain(`Результат запроса ${intent}`);
+  });
+
+  it("классификатор получает промпт с примерами по каждому намерению", async () => {
+    scripted({ intent: "OVERDUE" });
+    await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message: "Что просрочено?" });
+    const system = mocks.ollama.calls[0].body.messages[0].content;
+    for (const intent of ["FREE_EXECUTORS", "OVERDUE", "EQUIPMENT_HISTORY", "SHIFT_REPORT", "ANOMALIES", "FAILURE_FORECAST"]) expect(system).toContain(`- ${intent} —`);
   });
 
   it("история сохраняется по пользователю", async () => {
@@ -90,7 +99,8 @@ describe("рекомендации", () => {
     expect(fb.body).toMatchObject({ normativeId: base.normative.id, estimatedHours: 2, explanation: "Базовая рекомендация по справочнику" });
   });
 
-  it.fails("BUG-6: рекомендации без equipmentId должны давать 400, а не 500", async () => {
+  it("BUG-6: рекомендации без equipmentId → 400, с несуществующим → 404", async () => {
     expect((await request(app).get("/api/recommendations/executors").set(bearer(base.master))).status).toBe(400);
+    expect((await request(app).get("/api/recommendations/executors?equipmentId=999999").set(bearer(base.master))).status).toBe(404);
   });
 });

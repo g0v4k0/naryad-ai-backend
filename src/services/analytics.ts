@@ -9,8 +9,16 @@ export async function buildAnomalies(from = new Date(Date.now() - 90 * 86_400_00
   const groups = new Map<number, typeof orders>();
   for (const order of orders) groups.set(order.equipmentId, [...(groups.get(order.equipmentId) ?? []), order]);
   const average = groups.size ? orders.length / groups.size : 0;
+  // Emergency orders within 7 days after a planned one, per equipment, to compare each unit with the rest of the fleet.
+  const afterPlannedStats = new Map<number, { afterPlanned: number; planned: number }>();
+  for (const [equipmentId, list] of groups) {
+    const sorted = [...list].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    const afterPlanned = sorted.filter((order, index) => order.type === "EMERGENCY" && sorted.slice(0, index).some((previous) => previous.type === "PLANNED" && order.createdAt.getTime() - previous.createdAt.getTime() <= 7 * 86_400_000)).length;
+    afterPlannedStats.set(equipmentId, { afterPlanned, planned: list.filter((x) => x.type === "PLANNED").length });
+  }
+  const fleetTotals = [...afterPlannedStats.values()].reduce((sum, x) => ({ afterPlanned: sum.afterPlanned + x.afterPlanned, planned: sum.planned + x.planned }), { afterPlanned: 0, planned: 0 });
   const insights: Array<{ type: string; title: string; description: string; recommendation: string; severity: number; areaId: number; equipmentId: number; evidence: object }> = [];
-  for (const [, list] of groups) {
+  for (const [equipmentId, list] of groups) {
     const equipment = list[0].equipment;
     const downtime = list.reduce((sum, x) => sum + (x.actualDowntimeMinutes ?? 0), 0);
     const faultCounts = new Map<string, number>();
@@ -26,21 +34,25 @@ export async function buildAnomalies(from = new Date(Date.now() - 90 * 86_400_00
       equipmentId: equipment.id,
       evidence: { orders: list.length, downtime, topFault }
     });
-    if (topFault && topFault[1] >= 3) insights.push({
+    // The same fault must dominate the unit's repairs, not just occur three times among many.
+    const topShare = topFault ? topFault[1] / list.length : 0;
+    if (topFault && topFault[1] >= 3 && topShare >= 0.4) insights.push({
       type: "REPEATED_FAULT",
       title: `${equipment.name}: повторяющийся шифр ${topFault[0]}`,
-      description: `Одинаковая неисправность зарегистрирована ${topFault[1]} раз`,
+      description: `Одинаковая неисправность зарегистрирована ${topFault[1]} раз (${Math.round(topShare * 100)}% ремонтов)`,
       recommendation: "Проверить первопричину вместо повторной замены узла",
       severity: 4, areaId: equipment.areaId, equipmentId: equipment.id,
-      evidence: { faultCode: topFault[0], count: topFault[1] }
+      evidence: { faultCode: topFault[0], count: topFault[1], share: topShare }
     });
-    const sorted = [...list].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-    const afterPlanned = sorted.filter((order, index) => order.type === "EMERGENCY" && sorted.slice(0, index).some((previous) => previous.type === "PLANNED" && order.createdAt.getTime() - previous.createdAt.getTime() <= 7 * 86_400_000)).length;
-    if (afterPlanned >= 2) insights.push({
+    const { afterPlanned, planned } = afterPlannedStats.get(equipmentId)!;
+    const rate = planned ? afterPlanned / planned : 0;
+    const restPlanned = fleetTotals.planned - planned;
+    const restRate = restPlanned ? (fleetTotals.afterPlanned - afterPlanned) / restPlanned : 0;
+    if (afterPlanned >= 2 && rate >= Math.max(0.3, 2 * restRate)) insights.push({
       type: "FAILURE_AFTER_PLANNED_MAINTENANCE", title: `${equipment.name}: отказы после ППР`,
       description: `${afterPlanned} аварийных наряда возникли в течение 7 дней после плановых работ`,
       recommendation: "Проверить качество ППР и контрольную карту", severity: 5,
-      areaId: equipment.areaId, equipmentId: equipment.id, evidence: { afterPlanned }
+      areaId: equipment.areaId, equipmentId: equipment.id, evidence: { afterPlanned, planned, rate, fleetRate: restRate }
     });
     const materialTotals = new Map<number, number[]>();
     for (const order of list) for (const usage of order.materialUsages) materialTotals.set(usage.materialId, [...(materialTotals.get(usage.materialId) ?? []), Number(usage.quantity)]);
@@ -68,7 +80,8 @@ export async function predictFailures(days = 30) {
   return equipment.map((item) => {
     const recent = item.orders.filter((x) => x.createdAt >= recentFrom).length;
     const previous = item.orders.length - recent;
-    const growth = previous ? (recent - previous) / previous : recent ? 1 : 0;
+    // Laplace-smoothed and capped: 3 failures after 1 is a weaker signal than 7 after 6 on a critical unit.
+    const growth = Math.min(1, (recent + 1) / (previous + 1) - 1);
     const probability = Math.min(0.95, Math.max(0.05, 0.15 + recent * 0.08 + Math.max(0, growth) * 0.25 + item.criticality * 0.04));
     return { equipmentId: item.id, equipment: item.name, recentFailures: recent, previousFailures: previous, growth, probability: Math.round(probability * 100) / 100 };
   }).filter((x) => x.recentFailures > 0).sort((a, b) => b.probability - a.probability);

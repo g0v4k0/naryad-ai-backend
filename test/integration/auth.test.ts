@@ -2,6 +2,7 @@ import request from "supertest";
 import jwt from "jsonwebtoken";
 import { beforeAll, describe, expect, it } from "vitest";
 import { app } from "../../src/app.js";
+import { prisma } from "../../src/lib/prisma.js";
 import { bearer, seedBase, type Base } from "../helpers/db.js";
 
 let base: Base;
@@ -40,6 +41,38 @@ describe("авторизация", () => {
   it("просроченный токен отклоняется", async () => {
     const expired = jwt.sign({ sub: base.master.id, role: "MASTER", exp: Math.floor(Date.now() / 1000) - 10 }, process.env.JWT_SECRET!);
     expect((await request(app).get("/api/auth/me").set("authorization", `Bearer ${expired}`)).status).toBe(401);
+  });
+});
+
+describe("защита от перебора ПИН", () => {
+  const login = (body: object, ip = "10.0.0.1") => request(app).post("/api/auth/login").set("x-forwarded-for", ip).send(body);
+
+  it("5 неверных ПИН → логин блокируется (429 + Retry-After), даже с верным ПИН", async () => {
+    for (let i = 0; i < 5; i++) expect((await login({ login: "master", pin: "0000" })).status).toBe(401);
+    const locked = await login({ login: "master", pin: "1234" });
+    expect(locked.status).toBe(429);
+    expect(Number(locked.headers["retry-after"])).toBeGreaterThan(800);
+    expect((await login({ login: "manager", pin: "1234" }, "10.0.0.2")).status).toBe(200); // другой логин не затронут
+  });
+
+  it("успешный вход сбрасывает счётчик логина", async () => {
+    for (let i = 0; i < 4; i++) await login({ login: "master", pin: "0000" });
+    expect((await login({ login: "master", pin: "1234" })).status).toBe(200);
+    for (let i = 0; i < 4; i++) expect((await login({ login: "master", pin: "0000" })).status).toBe(401);
+  });
+
+  it("перебор по разным логинам с одного IP блокируется после 30 неудач", async () => {
+    for (let i = 0; i < 30; i++) await login({ login: `ghost${i}`, pin: "0000" }, "10.9.9.9");
+    expect((await login({ login: "master", pin: "1234" }, "10.9.9.9")).status).toBe(429);
+    expect((await login({ login: "master", pin: "1234" }, "10.9.9.8")).status).toBe(200);
+  });
+
+  it("старый bcrypt-хеш принимается и заменяется на scrypt", async () => {
+    expect((await prisma.user.findUniqueOrThrow({ where: { login: "worker1" } })).pinHash).toMatch(/^\$2[aby]\$/);
+    expect((await login({ login: "worker1", pin: "1234" })).status).toBe(200);
+    expect((await prisma.user.findUniqueOrThrow({ where: { login: "worker1" } })).pinHash).toMatch(/^scrypt\$/);
+    expect((await login({ login: "worker1", pin: "1234" })).status).toBe(200);
+    expect((await login({ login: "worker1", pin: "9999" })).status).toBe(401);
   });
 });
 

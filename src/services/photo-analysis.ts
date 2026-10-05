@@ -29,6 +29,26 @@ export function similarity(a: string, b: string) {
   return equal / a.length;
 }
 
+/** At or above: the same shot (auto-rework). Between SUSPICIOUS and DUPLICATE: master must look (R4: 0.88 has 0% false matches between different photos). */
+export const DUPLICATE_SIMILARITY = 0.98;
+export const SUSPICIOUS_SIMILARITY = 0.88;
+
+async function findSimilarEarlierPhoto(workOrderId: number, perceptual: string) {
+  const order = await prisma.workOrder.findUniqueOrThrow({ where: { id: workOrderId }, select: { equipmentId: true } });
+  const candidates = await prisma.photo.findMany({
+    where: { workOrderId: { not: workOrderId }, workOrder: { equipmentId: order.equipmentId } },
+    select: { workOrderId: true, metadata: true },
+    orderBy: { capturedAt: "desc" },
+    take: 300
+  });
+  for (const candidate of candidates) {
+    const other = (candidate.metadata as { perceptual?: string } | null)?.perceptual;
+    const value = other ? similarity(perceptual, other) : 0;
+    if (value >= SUSPICIOUS_SIMILARITY) return { workOrderId: candidate.workOrderId, similarity: value };
+  }
+  return null;
+}
+
 export async function analyzeOrderPhotos(workOrderId: number) {
   const photos = await prisma.photo.findMany({ where: { workOrderId }, orderBy: { capturedAt: "asc" } });
   const analyzed = [];
@@ -41,13 +61,16 @@ export async function analyzeOrderPhotos(workOrderId: number) {
   }
   const before = analyzed.find((x) => x.type === "BEFORE");
   const after = analyzed.find((x) => x.type === "AFTER");
-  if (!after) return { score: 1, confidence: 1, comment: "Отсутствует доступное фото после", duplicate: false };
+  if (!after) return { score: 1, confidence: 1, comment: "Отсутствует доступное фото после", duplicate: false, missing: true };
   const oldDuplicate = await prisma.photo.findFirst({ where: { id: { not: after.id }, contentHash: after.sha256, workOrderId: { not: workOrderId } }, select: { id: true, workOrderId: true } });
   if (oldDuplicate) return { score: 1, confidence: 1, comment: `Фото уже использовалось в наряде ${oldDuplicate.workOrderId}`, duplicate: true };
+  const earlier = await findSimilarEarlierPhoto(workOrderId, after.perceptual);
+  if (earlier) return { score: 3, confidence: 0.4, comment: `Фото после похоже на фото из наряда ${earlier.workOrderId} (сходство ${Math.round(earlier.similarity * 100)}%) — проверьте, что снимок новый`, duplicate: false, suspicious: true };
   if (!before) return { score: 3, confidence: 0.45, comment: "Фото после проверено, но сравнить с фото до невозможно", duplicate: false };
   const exactDuplicate = before.sha256 === after.sha256;
   const visualSimilarity = similarity(before.perceptual, after.perceptual);
-  if (exactDuplicate || visualSimilarity > 0.98) return { score: 1, confidence: 0.98, comment: "Фото до и после совпадают или почти не отличаются", duplicate: true, visualSimilarity };
+  if (exactDuplicate || visualSimilarity >= DUPLICATE_SIMILARITY) return { score: 1, confidence: 0.98, comment: "Фото до и после совпадают или почти не отличаются", duplicate: true, visualSimilarity };
+  if (visualSimilarity >= SUSPICIOUS_SIMILARITY) return { score: 3, confidence: 0.4, comment: `Фото до и после очень похожи (${Math.round(visualSimilarity * 100)}%) — проверьте, что ремонт виден на снимке`, duplicate: false, suspicious: true, visualSimilarity };
 
   if (config.OLLAMA_VISION_MODEL) {
     try {
@@ -65,7 +88,16 @@ export async function analyzeOrderPhotos(workOrderId: number) {
       if (response.ok) {
         const body = await response.json() as { message?: { content?: string } };
         if (body.message?.content) {
-          const vision = JSON.parse(body.message.content) as { score: number; confidence: number; comment: string; sameEquipment?: boolean; problemFixed?: boolean; safetyIssues?: string[] };
+          const raw = JSON.parse(body.message.content) as { score?: unknown; confidence?: unknown; comment?: unknown; sameEquipment?: unknown; problemFixed?: unknown; safetyIssues?: unknown };
+          // Normalize model output: these values are stored in Int/Float columns.
+          const vision = {
+            score: Math.max(1, Math.min(5, Math.round(Number(raw.score)) || 3)),
+            confidence: Math.max(0, Math.min(1, Number(raw.confidence) || 0.5)),
+            comment: typeof raw.comment === "string" ? raw.comment : "Оценка vision-модели",
+            sameEquipment: typeof raw.sameEquipment === "boolean" ? raw.sameEquipment : undefined,
+            problemFixed: typeof raw.problemFixed === "boolean" ? raw.problemFixed : undefined,
+            safetyIssues: Array.isArray(raw.safetyIssues) ? raw.safetyIssues.map(String) : []
+          };
           if (vision.sameEquipment === false) return { ...vision, score: 1, comment: `${vision.comment}. На фото другое оборудование`, duplicate: false, visualSimilarity };
           if (vision.safetyIssues?.length) return { ...vision, score: Math.min(vision.score, 2), comment: `${vision.comment}. Замечания безопасности: ${vision.safetyIssues.join(", ")}`, duplicate: false, visualSimilarity };
           return { ...vision, duplicate: false, visualSimilarity };

@@ -54,8 +54,13 @@ describe("справочники и администрирование", () => {
     }
   });
 
-  it.fails("BUG-7: удаление участка с оборудованием должно давать 409, а не 500", async () => {
-    expect((await request(app).delete(`/api/admin/areas/${base.area.id}`).set(bearer(base.admin))).status).toBe(409);
+  it("BUG-7: удаление используемых записей → 409, отсутствующих → 404; правка отсутствующих → 404", async () => {
+    const a = bearer(base.admin);
+    expect((await request(app).delete(`/api/admin/areas/${base.area.id}`).set(a)).status).toBe(409);
+    expect((await request(app).delete("/api/admin/materials/999999").set(a)).status).toBe(404);
+    expect((await request(app).patch("/api/admin/equipment/999999").set(a).send({ criticality: 2 })).status).toBe(404);
+    expect((await request(app).post("/api/admin/areas").set(a).send({ name: base.area.name })).status).toBe(409);
+    expect(await prisma.area.count()).toBe(2);
   });
 });
 
@@ -131,20 +136,27 @@ describe("Socket.IO realtime", () => {
     socket.close();
   });
 
-  it("личное уведомление приходит только адресату; изменение наряда — всем", async () => {
-    const w1 = connect(url, { auth: { token: tokenFor(base.worker1) }, transports: ["websocket"] });
-    const w2 = connect(url, { auth: { token: tokenFor(base.worker2) }, transports: ["websocket"] });
-    await Promise.all([next(w1, "connect"), next(w2, "connect")]);
-    const got2: unknown[] = [];
-    w2.on("notification:new", (n) => got2.push(n));
-    const changed2 = next(w2, "work-order:changed");
-    const p = next(w1, "notification:new");
+  it("SEC-2: наряд видят мастер, руководитель и его исполнитель; чужой исполнитель — нет", async () => {
+    const sockets = Object.fromEntries((["worker1", "worker2", "master", "manager"] as const).map((k) => [k, connect(url, { auth: { token: tokenFor(base[k]) }, transports: ["websocket"] })]));
+    await Promise.all(Object.values(sockets).map((s) => next(s, "connect")));
+    const got: Record<string, string[]> = { worker1: [], worker2: [], master: [], manager: [] };
+    for (const [k, s] of Object.entries(sockets)) {
+      s.on("work-order:changed", () => got[k].push("order"));
+      s.on("notification:new", () => got[k].push("notification"));
+    }
     const res = await request(app).post("/api/work-orders").set(bearer(base.master)).send({ type: "PLANNED", description: "Проверка realtime", areaId: base.area.id, equipmentId: base.pump.id, assigneeId: base.worker1.id, priority: "NORMAL", normativeId: base.normative.id });
-    const [notification] = await p;
-    expect(notification).toMatchObject({ userId: base.worker1.id, type: "NEW_ORDER" });
-    const [order] = await changed2;
-    expect(order.id).toBe(res.body.id);
-    expect(got2).toHaveLength(0);
-    w1.close(); w2.close();
+    expect(res.status).toBe(201);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(got.worker1.sort()).toEqual(["notification", "order"]);
+    expect(got.master).toEqual(["order"]);
+    expect(got.manager).toEqual(["order"]);
+    expect(got.worker2).toEqual([]);
+    // после переназначения прежний исполнитель получает обновление (наряд пропадает из его очереди), новый — тоже
+    for (const k of Object.keys(got)) got[k] = [];
+    await request(app).post(`/api/work-orders/${res.body.id}/reassign`).set(bearer(base.master)).send({ assigneeId: base.worker2.id });
+    await new Promise((r) => setTimeout(r, 300));
+    expect(got.worker1).toEqual(["order"]);
+    expect(got.worker2.sort()).toEqual(["notification", "order"]);
+    Object.values(sockets).forEach((s) => s.close());
   });
 });

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { PhotoType, Role, WorkOrderStatus } from "@prisma/client";
+import { AiVerdict, Prisma, PhotoType, Role, WorkOrderStatus } from "@prisma/client";
 import { z } from "zod";
 import { nextStatus, type WorkOrderAction } from "../domain/work-order-state.js";
 import { asyncHandler, HttpError } from "../lib/http.js";
@@ -25,6 +25,18 @@ const orderInclude = {
   aiAssessment: true
 } as const;
 
+// Compact list for mobile queues: no photos or material lines.
+const listCompactInclude = {
+  area: true,
+  equipment: true,
+  assignee: { select: { id: true, fullName: true, specialty: true, employeeStatus: true } },
+  faultCode: true,
+  aiAssessment: { select: { verdict: true, score: true, masterScore: true } }
+} as const;
+
+// Orders that are finished or awaiting the master's decision cannot change hands.
+const NOT_REASSIGNABLE: WorkOrderStatus[] = [WorkOrderStatus.COMPLETED, WorkOrderStatus.AI_REVIEW, WorkOrderStatus.CLOSED, WorkOrderStatus.CANCELLED];
+
 workOrdersRouter.get("/", asyncHandler(async (req, res) => {
   const status = typeof req.query.status === "string" ? req.query.status.split(",") as WorkOrderStatus[] : undefined;
   const where = {
@@ -33,7 +45,17 @@ workOrdersRouter.get("/", asyncHandler(async (req, res) => {
     ...(req.query.assigneeId ? { assigneeId: Number(req.query.assigneeId) } : {}),
     ...(req.user!.role === Role.EXECUTOR ? { assigneeId: req.user!.id } : {})
   };
-  res.json(await prisma.workOrder.findMany({ where, include: orderInclude, orderBy: [{ priority: "asc" }, { deadline: "asc" }], take: 200 }));
+  const { limit, offset, compact } = z.object({
+    limit: z.coerce.number().int().min(1).max(500).default(200),
+    offset: z.coerce.number().int().min(0).default(0),
+    compact: z.enum(["0", "1", "true", "false"]).default("0").transform((v) => v === "1" || v === "true")
+  }).parse(req.query);
+  const [orders, total] = await Promise.all([
+    prisma.workOrder.findMany({ where, include: compact ? listCompactInclude : orderInclude, orderBy: [{ priority: "asc" }, { deadline: "asc" }, { id: "asc" }], take: limit, skip: offset }),
+    prisma.workOrder.count({ where })
+  ]);
+  res.setHeader("x-total-count", String(total));
+  res.json(orders);
 }));
 
 workOrdersRouter.get("/:id", asyncHandler(async (req, res) => {
@@ -118,24 +140,40 @@ workOrdersRouter.post("/:id/action", asyncHandler(async (req, res) => {
   catch (error) { throw new HttpError(409, (error as Error).message); }
 
   const now = new Date();
-  const updated = await prisma.$transaction(async (tx) => {
-    const data: Record<string, unknown> = { status: target };
-    if (input.action === "ACCEPT") data.acceptedAt = now;
-    if (input.action === "START") data.startedAt = order.startedAt ?? now;
-    if (input.action === "PAUSE") data.pauseReason = input.comment;
-    if (input.action === "REJECT") data.rejectionReason = input.comment;
-    if (input.action === "COMPLETE") Object.assign(data, { completedAt: now, completionText: input.completionText, faultCodeId: input.faultCodeId });
-    if (input.action === "CLOSE") Object.assign(data, { closedAt: now, actualDowntimeMinutes: input.actualDowntimeMinutes });
-    await tx.workOrder.update({ where: { id }, data });
-    if (input.action === "COMPLETE") {
-      if (input.afterPhotoUrls.length) await tx.photo.createMany({ data: input.afterPhotoUrls.map((fileUrl) => ({ workOrderId: id, authorId: req.user!.id, type: PhotoType.AFTER, fileUrl })) });
-      for (const item of input.materials) await tx.materialUsage.upsert({ where: { workOrderId_materialId: { workOrderId: id, materialId: item.materialId } }, create: { workOrderId: id, ...item }, update: { quantity: item.quantity } });
-    }
-    if (input.action === "CLOSE" && input.masterScore) await tx.aiAssessment.update({ where: { workOrderId: id }, data: { masterScore: input.masterScore, masterComment: input.comment, reviewedById: req.user!.id } });
-    if (input.action === "CLOSE") await tx.equipmentDowntime.updateMany({ where: { workOrderId: id, endedAt: null }, data: { endedAt: now } });
-    await tx.workOrderEvent.create({ data: { workOrderId: id, actorId: req.user!.id, action: input.action, fromStatus: order.status, toStatus: target, comment: input.comment, clientActionId: input.clientActionId } });
-    return tx.workOrder.findUniqueOrThrow({ where: { id }, include: orderInclude });
-  });
+  const replay = async () => res.json({ order: await prisma.workOrder.findUniqueOrThrow({ where: { id }, include: orderInclude }), replayed: true });
+  let updated;
+  try {
+    updated = await prisma.$transaction(async (tx) => {
+      const data: Record<string, unknown> = { status: target };
+      if (input.action === "ACCEPT") data.acceptedAt = now;
+      if (input.action === "START") data.startedAt = order.startedAt ?? now;
+      if (input.action === "PAUSE") data.pauseReason = input.comment;
+      if (input.action === "REJECT") data.rejectionReason = input.comment;
+      if (input.action === "COMPLETE") Object.assign(data, { completedAt: now, completionText: input.completionText, faultCodeId: input.faultCodeId });
+      if (input.action === "CLOSE") Object.assign(data, { closedAt: now, actualDowntimeMinutes: input.actualDowntimeMinutes });
+      await tx.workOrder.update({ where: { id }, data });
+      if (input.action === "COMPLETE") {
+        if (input.afterPhotoUrls.length) await tx.photo.createMany({ data: input.afterPhotoUrls.map((fileUrl) => ({ workOrderId: id, authorId: req.user!.id, type: PhotoType.AFTER, fileUrl })) });
+        for (const item of input.materials) await tx.materialUsage.upsert({ where: { workOrderId_materialId: { workOrderId: id, materialId: item.materialId } }, create: { workOrderId: id, ...item }, update: { quantity: item.quantity } });
+      }
+      if (input.action === "CLOSE" && input.masterScore) {
+        const review = { masterScore: input.masterScore, masterComment: input.comment, reviewedById: req.user!.id };
+        // Orders imported in AI_REVIEW may have no AI assessment yet: record the master's decision alone.
+        await tx.aiAssessment.upsert({
+          where: { workOrderId: id },
+          update: review,
+          create: { workOrderId: id, ...review, verdict: input.masterScore >= 3 ? AiVerdict.ACCEPTED : AiVerdict.ACCEPTED_WITH_COMMENTS, score: input.masterScore, explanation: "Оценка мастера без AI-проверки" }
+        });
+      }
+      if (input.action === "CLOSE") await tx.equipmentDowntime.updateMany({ where: { workOrderId: id, endedAt: null }, data: { endedAt: now } });
+      await tx.workOrderEvent.create({ data: { workOrderId: id, actorId: req.user!.id, action: input.action, fromStatus: order.status, toStatus: target, comment: input.comment, clientActionId: input.clientActionId } });
+      return tx.workOrder.findUniqueOrThrow({ where: { id }, include: orderInclude });
+    });
+  } catch (error) {
+    // A concurrent retry with the same clientActionId won the race: answer like a replay.
+    if (input.clientActionId && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return replay();
+    throw error;
+  }
 
   await refreshEmployeeStatus(order.assigneeId);
   let assessment = null;
@@ -164,12 +202,15 @@ workOrdersRouter.patch("/:id", allow(Role.MASTER, Role.ADMIN), asyncHandler(asyn
 
 workOrdersRouter.post("/:id/reassign", allow(Role.MASTER, Role.ADMIN), asyncHandler(async (req, res) => {
   const { assigneeId } = z.object({ assigneeId: z.number().int().positive() }).parse(req.body);
-  const previous = await prisma.workOrder.findUniqueOrThrow({ where: { id: Number(req.params.id) }, select: { assigneeId: true } });
+  const previous = await prisma.workOrder.findUnique({ where: { id: Number(req.params.id) }, select: { assigneeId: true, status: true } });
+  if (!previous) throw new HttpError(404, "Наряд не найден");
+  if (NOT_REASSIGNABLE.includes(previous.status)) throw new HttpError(409, `Наряд в статусе ${previous.status} нельзя переназначить`);
+  if (!await prisma.user.findFirst({ where: { id: assigneeId, role: Role.EXECUTOR } })) throw new HttpError(400, "Назначить можно только исполнителя");
   const order = await prisma.workOrder.update({ where: { id: Number(req.params.id) }, data: { assigneeId, status: WorkOrderStatus.ISSUED }, include: orderInclude });
   await prisma.workOrderEvent.create({ data: { workOrderId: order.id, actorId: req.user!.id, action: "REASSIGN", toStatus: WorkOrderStatus.ISSUED } });
   await notify({ userId: assigneeId, workOrderId: order.id, type: "NEW_ORDER", title: `Наряд ${order.number} переназначен вам`, message: order.description });
   await Promise.all([refreshEmployeeStatus(previous.assigneeId), refreshEmployeeStatus(assigneeId)]);
-  emitOrderChanged(order);
+  emitOrderChanged(order, [previous.assigneeId]);
   await enqueueWorkOrderSync(order.id, "REASSIGNED");
   res.json(order);
 }));

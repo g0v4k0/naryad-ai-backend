@@ -28,6 +28,8 @@ import { config } from "./config.js";
 mkdirSync("uploads", { recursive: true });
 const upload = multer({ dest: "uploads/", limits: { fileSize: 15 * 1024 * 1024 } });
 export const app = express();
+// Behind nginx on the same host: take the client IP from X-Forwarded-For (login throttling).
+app.set("trust proxy", "loopback");
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "2mb" }));

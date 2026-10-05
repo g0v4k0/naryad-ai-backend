@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { Role } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import { hashPin } from "../lib/pin.js";
 import { z } from "zod";
 import { asyncHandler } from "../lib/http.js";
 import { prisma } from "../lib/prisma.js";
@@ -43,7 +43,7 @@ adminRouter.post("/normatives", asyncHandler(async (req, res) => {
 adminRouter.post("/users", asyncHandler(async (req, res) => {
   const input = z.object({ login: z.string().min(3), pin: z.string().min(4), fullName: z.string().min(3), role: z.enum(["MASTER", "EXECUTOR", "MANAGER", "ADMIN"]), specialty: z.string().optional(), grade: z.number().int().optional(), brigadeId: z.number().int().positive().optional(), language: z.enum(["ru", "kk"]).default("ru") }).parse(req.body);
   const { pin, ...data } = input;
-  res.status(201).json(await prisma.user.create({ data: { ...data, pinHash: await bcrypt.hash(pin, 10) }, omit: { pinHash: true } }));
+  res.status(201).json(await prisma.user.create({ data: { ...data, pinHash: await hashPin(pin) }, omit: { pinHash: true } }));
 }));
 adminRouter.patch("/users/:id/shift", asyncHandler(async (req, res) => {
   const input = z.object({ isOnShift: z.boolean(), employeeStatus: z.enum(["AVAILABLE", "BUSY", "QUEUED", "OFF_SHIFT"]) }).parse(req.body);

@@ -21,6 +21,9 @@ const schema = z.object({
   ,ONE_C_PUSH_PATH: z.string().default("/hs/naryad-ai/events")
   ,ONE_C_MAX_ATTEMPTS: z.coerce.number().int().positive().default(8)
   ,ONE_C_TIMEOUT_MS: z.coerce.number().int().positive().default(15000)
+  ,LOGIN_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5)
+  ,LOGIN_MAX_ATTEMPTS_PER_IP: z.coerce.number().int().positive().default(30)
+  ,LOGIN_LOCK_MINUTES: z.coerce.number().int().positive().default(15)
 });
 
 export const config = schema.parse(process.env);
