@@ -1,0 +1,1272 @@
+{
+  "totalOrders": 498,
+  "onTimeRate": 0.8032128514056225,
+  "verdicts": {
+    "REWORK_REQUIRED": 46,
+    "ACCEPTED": 452
+  },
+  "perEquipment": [
+    {
+      "name": "Конвейер К-3",
+      "n": 88
+    },
+    {
+      "name": "Оборудование 5",
+      "n": 18
+    },
+    {
+      "name": "Оборудование 12",
+      "n": 18
+    },
+    {
+      "name": "Оборудование 19",
+      "n": 18
+    },
+    {
+      "name": "Оборудование 1",
+      "n": 18
+    },
+    {
+      "name": "Оборудование 2",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 4",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 7",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 9",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 10",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 13",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 14",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 16",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 17",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 18",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 20",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 21",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 23",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 24",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 25",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 8",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 15",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 22",
+      "n": 17
+    },
+    {
+      "name": "Оборудование 6",
+      "n": 16
+    },
+    {
+      "name": "Оборудование 11",
+      "n": 16
+    }
+  ],
+  "byDay": [
+    {
+      "daysAgo": 0,
+      "n": 3
+    },
+    {
+      "daysAgo": 1,
+      "n": 6
+    },
+    {
+      "daysAgo": 2,
+      "n": 6
+    },
+    {
+      "daysAgo": 3,
+      "n": 6
+    },
+    {
+      "daysAgo": 4,
+      "n": 6
+    },
+    {
+      "daysAgo": 5,
+      "n": 6
+    },
+    {
+      "daysAgo": 6,
+      "n": 6
+    },
+    {
+      "daysAgo": 7,
+      "n": 6
+    },
+    {
+      "daysAgo": 8,
+      "n": 6
+    },
+    {
+      "daysAgo": 9,
+      "n": 6
+    },
+    {
+      "daysAgo": 10,
+      "n": 6
+    },
+    {
+      "daysAgo": 11,
+      "n": 6
+    },
+    {
+      "daysAgo": 12,
+      "n": 6
+    },
+    {
+      "daysAgo": 13,
+      "n": 6
+    },
+    {
+      "daysAgo": 14,
+      "n": 6
+    },
+    {
+      "daysAgo": 15,
+      "n": 6
+    },
+    {
+      "daysAgo": 16,
+      "n": 6
+    },
+    {
+      "daysAgo": 17,
+      "n": 6
+    },
+    {
+      "daysAgo": 18,
+      "n": 6
+    },
+    {
+      "daysAgo": 19,
+      "n": 6
+    },
+    {
+      "daysAgo": 20,
+      "n": 6
+    },
+    {
+      "daysAgo": 21,
+      "n": 6
+    },
+    {
+      "daysAgo": 22,
+      "n": 6
+    },
+    {
+      "daysAgo": 23,
+      "n": 6
+    },
+    {
+      "daysAgo": 24,
+      "n": 6
+    },
+    {
+      "daysAgo": 25,
+      "n": 6
+    },
+    {
+      "daysAgo": 26,
+      "n": 6
+    },
+    {
+      "daysAgo": 27,
+      "n": 6
+    },
+    {
+      "daysAgo": 28,
+      "n": 6
+    },
+    {
+      "daysAgo": 29,
+      "n": 6
+    },
+    {
+      "daysAgo": 30,
+      "n": 6
+    },
+    {
+      "daysAgo": 31,
+      "n": 6
+    },
+    {
+      "daysAgo": 32,
+      "n": 6
+    },
+    {
+      "daysAgo": 33,
+      "n": 6
+    },
+    {
+      "daysAgo": 34,
+      "n": 6
+    },
+    {
+      "daysAgo": 35,
+      "n": 6
+    },
+    {
+      "daysAgo": 36,
+      "n": 6
+    },
+    {
+      "daysAgo": 37,
+      "n": 6
+    },
+    {
+      "daysAgo": 38,
+      "n": 6
+    },
+    {
+      "daysAgo": 39,
+      "n": 6
+    },
+    {
+      "daysAgo": 40,
+      "n": 6
+    },
+    {
+      "daysAgo": 41,
+      "n": 6
+    },
+    {
+      "daysAgo": 42,
+      "n": 6
+    },
+    {
+      "daysAgo": 43,
+      "n": 6
+    },
+    {
+      "daysAgo": 44,
+      "n": 6
+    },
+    {
+      "daysAgo": 45,
+      "n": 6
+    },
+    {
+      "daysAgo": 46,
+      "n": 6
+    },
+    {
+      "daysAgo": 47,
+      "n": 6
+    },
+    {
+      "daysAgo": 48,
+      "n": 6
+    },
+    {
+      "daysAgo": 49,
+      "n": 6
+    },
+    {
+      "daysAgo": 50,
+      "n": 6
+    },
+    {
+      "daysAgo": 51,
+      "n": 5
+    },
+    {
+      "daysAgo": 52,
+      "n": 5
+    },
+    {
+      "daysAgo": 53,
+      "n": 5
+    },
+    {
+      "daysAgo": 54,
+      "n": 5
+    },
+    {
+      "daysAgo": 55,
+      "n": 5
+    },
+    {
+      "daysAgo": 56,
+      "n": 5
+    },
+    {
+      "daysAgo": 57,
+      "n": 5
+    },
+    {
+      "daysAgo": 58,
+      "n": 5
+    },
+    {
+      "daysAgo": 59,
+      "n": 5
+    },
+    {
+      "daysAgo": 60,
+      "n": 5
+    },
+    {
+      "daysAgo": 61,
+      "n": 5
+    },
+    {
+      "daysAgo": 62,
+      "n": 5
+    },
+    {
+      "daysAgo": 63,
+      "n": 5
+    },
+    {
+      "daysAgo": 64,
+      "n": 5
+    },
+    {
+      "daysAgo": 65,
+      "n": 5
+    },
+    {
+      "daysAgo": 66,
+      "n": 5
+    },
+    {
+      "daysAgo": 67,
+      "n": 5
+    },
+    {
+      "daysAgo": 68,
+      "n": 5
+    },
+    {
+      "daysAgo": 69,
+      "n": 5
+    },
+    {
+      "daysAgo": 70,
+      "n": 5
+    },
+    {
+      "daysAgo": 71,
+      "n": 5
+    },
+    {
+      "daysAgo": 72,
+      "n": 5
+    },
+    {
+      "daysAgo": 73,
+      "n": 5
+    },
+    {
+      "daysAgo": 74,
+      "n": 5
+    },
+    {
+      "daysAgo": 75,
+      "n": 5
+    },
+    {
+      "daysAgo": 76,
+      "n": 5
+    },
+    {
+      "daysAgo": 77,
+      "n": 5
+    },
+    {
+      "daysAgo": 78,
+      "n": 5
+    },
+    {
+      "daysAgo": 79,
+      "n": 5
+    },
+    {
+      "daysAgo": 80,
+      "n": 5
+    },
+    {
+      "daysAgo": 81,
+      "n": 5
+    },
+    {
+      "daysAgo": 82,
+      "n": 5
+    },
+    {
+      "daysAgo": 83,
+      "n": 5
+    },
+    {
+      "daysAgo": 84,
+      "n": 5
+    },
+    {
+      "daysAgo": 85,
+      "n": 5
+    },
+    {
+      "daysAgo": 86,
+      "n": 5
+    },
+    {
+      "daysAgo": 87,
+      "n": 5
+    },
+    {
+      "daysAgo": 88,
+      "n": 5
+    },
+    {
+      "daysAgo": 89,
+      "n": 5
+    }
+  ],
+  "anomalies": [
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 20: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 5
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 11: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 5
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 12: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 4
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 13: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 3
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 14: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 4
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 16: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 3
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 17: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 5
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 18: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 4
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 19: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 2
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 2: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 3
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 21: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 4
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 23: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 5
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 24: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 4
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 25: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 3
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 1: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 5
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 8: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 5
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 15: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 4
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 22: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 3
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Конвейер К-3: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 20
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 5: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 5
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 4: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 4
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 6: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 4
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 7: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 3
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 9: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 4
+      }
+    },
+    {
+      "type": "FREQUENT_FAILURES",
+      "title": "Конвейер К-3: повышенная частота ремонтов",
+      "severity": 5,
+      "evidence": {
+        "orders": 88,
+        "downtime": 9180,
+        "topFault": [
+          "П-03",
+          9
+        ]
+      }
+    },
+    {
+      "type": "FAILURE_AFTER_PLANNED_MAINTENANCE",
+      "title": "Оборудование 10: отказы после ППР",
+      "severity": 5,
+      "evidence": {
+        "afterPlanned": 4
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 15: повторяющийся шифр М-20",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "М-20"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Конвейер К-3: повторяющийся шифр П-03",
+      "severity": 4,
+      "evidence": {
+        "count": 9,
+        "faultCode": "П-03"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 8: повторяющийся шифр П-13",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "П-13"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 6: повторяющийся шифр Э-11",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "Э-11"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 1: повторяющийся шифр Э-06",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "Э-06"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 4: повторяющийся шифр С-14",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "С-14"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 25: повторяющийся шифр М-15",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "М-15"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 22: повторяющийся шифр Г-07",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "Г-07"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 24: повторяющийся шифр С-04",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "С-04"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 5: повторяющийся шифр М-05",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "М-05"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 2: повторяющийся шифр Г-12",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "Г-12"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 23: повторяющийся шифр П-13",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "П-13"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 21: повторяющийся шифр Э-16",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "Э-16"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 11: повторяющийся шифр Э-01",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "Э-01"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 20: повторяющийся шифр М-05",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "М-05"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 19: повторяющийся шифр С-19",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "С-19"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 7: повторяющийся шифр Г-02",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "Г-02"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 18: повторяющийся шифр П-08",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "П-08"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 17: повторяющийся шифр Г-17",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "Г-17"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 9: повторяющийся шифр С-19",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "С-19"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 16: повторяющийся шифр Э-06",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "Э-06"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 14: повторяющийся шифр С-09",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "С-09"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 10: повторяющийся шифр М-10",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "М-10"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 13: повторяющийся шифр П-18",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "П-18"
+      }
+    },
+    {
+      "type": "REPEATED_FAULT",
+      "title": "Оборудование 12: повторяющийся шифр Г-12",
+      "severity": 4,
+      "evidence": {
+        "count": 5,
+        "faultCode": "Г-12"
+      }
+    }
+  ],
+  "anomalyMs": 112,
+  "plantedDetected": [
+    "FAILURE_AFTER_PLANNED_MAINTENANCE",
+    "FREQUENT_FAILURES",
+    "REPEATED_FAULT"
+  ],
+  "falsePositives": 48,
+  "forecast": [
+    {
+      "equipmentId": 9,
+      "equipment": "Оборудование 9",
+      "recentFailures": 3,
+      "previousFailures": 1,
+      "growth": 2,
+      "probability": 0.95
+    },
+    {
+      "equipmentId": 10,
+      "equipment": "Оборудование 10",
+      "recentFailures": 3,
+      "previousFailures": 1,
+      "growth": 2,
+      "probability": 0.95
+    },
+    {
+      "equipmentId": 14,
+      "equipment": "Оборудование 14",
+      "recentFailures": 3,
+      "previousFailures": 1,
+      "growth": 2,
+      "probability": 0.95
+    },
+    {
+      "equipmentId": 18,
+      "equipment": "Оборудование 18",
+      "recentFailures": 3,
+      "previousFailures": 1,
+      "growth": 2,
+      "probability": 0.95
+    },
+    {
+      "equipmentId": 3,
+      "equipment": "Конвейер К-3",
+      "recentFailures": 7,
+      "previousFailures": 6,
+      "growth": 0.16666666666666666,
+      "probability": 0.87
+    },
+    {
+      "equipmentId": 23,
+      "equipment": "Оборудование 23",
+      "recentFailures": 3,
+      "previousFailures": 0,
+      "growth": 1,
+      "probability": 0.76
+    },
+    {
+      "equipmentId": 5,
+      "equipment": "Оборудование 5",
+      "recentFailures": 3,
+      "previousFailures": 2,
+      "growth": 0.5,
+      "probability": 0.72
+    },
+    {
+      "equipmentId": 2,
+      "equipment": "Оборудование 2",
+      "recentFailures": 2,
+      "previousFailures": 0,
+      "growth": 1,
+      "probability": 0.68
+    },
+    {
+      "equipmentId": 6,
+      "equipment": "Оборудование 6",
+      "recentFailures": 2,
+      "previousFailures": 1,
+      "growth": 1,
+      "probability": 0.68
+    },
+    {
+      "equipmentId": 11,
+      "equipment": "Оборудование 11",
+      "recentFailures": 2,
+      "previousFailures": 0,
+      "growth": 1,
+      "probability": 0.68
+    },
+    {
+      "equipmentId": 15,
+      "equipment": "Оборудование 15",
+      "recentFailures": 1,
+      "previousFailures": 0,
+      "growth": 1,
+      "probability": 0.68
+    },
+    {
+      "equipmentId": 19,
+      "equipment": "Оборудование 19",
+      "recentFailures": 2,
+      "previousFailures": 0,
+      "growth": 1,
+      "probability": 0.68
+    },
+    {
+      "equipmentId": 7,
+      "equipment": "Оборудование 7",
+      "recentFailures": 1,
+      "previousFailures": 0,
+      "growth": 1,
+      "probability": 0.6
+    },
+    {
+      "equipmentId": 1,
+      "equipment": "Оборудование 1",
+      "recentFailures": 2,
+      "previousFailures": 3,
+      "growth": -0.3333333333333333,
+      "probability": 0.43
+    },
+    {
+      "equipmentId": 17,
+      "equipment": "Оборудование 17",
+      "recentFailures": 2,
+      "previousFailures": 3,
+      "growth": -0.3333333333333333,
+      "probability": 0.43
+    },
+    {
+      "equipmentId": 22,
+      "equipment": "Оборудование 22",
+      "recentFailures": 2,
+      "previousFailures": 2,
+      "growth": 0,
+      "probability": 0.43
+    },
+    {
+      "equipmentId": 25,
+      "equipment": "Оборудование 25",
+      "recentFailures": 1,
+      "previousFailures": 2,
+      "growth": -0.5,
+      "probability": 0.43
+    },
+    {
+      "equipmentId": 13,
+      "equipment": "Оборудование 13",
+      "recentFailures": 1,
+      "previousFailures": 3,
+      "growth": -0.6666666666666666,
+      "probability": 0.35
+    },
+    {
+      "equipmentId": 21,
+      "equipment": "Оборудование 21",
+      "recentFailures": 1,
+      "previousFailures": 3,
+      "growth": -0.6666666666666666,
+      "probability": 0.35
+    }
+  ],
+  "ratings": [
+    {
+      "fullName": "Исполнитель 7",
+      "score": 94.3,
+      "quality": 4.52,
+      "onTimeRate": 1,
+      "closed": 33
+    },
+    {
+      "fullName": "Исполнитель 9",
+      "score": 94.3,
+      "quality": 4.52,
+      "onTimeRate": 1,
+      "closed": 33
+    },
+    {
+      "fullName": "Исполнитель 13",
+      "score": 94.3,
+      "quality": 4.52,
+      "onTimeRate": 1,
+      "closed": 33
+    },
+    {
+      "fullName": "Исполнитель 15",
+      "score": 94.3,
+      "quality": 4.52,
+      "onTimeRate": 1,
+      "closed": 33
+    },
+    {
+      "fullName": "Исполнитель 3",
+      "score": 94.2,
+      "quality": 4.5,
+      "onTimeRate": 1,
+      "closed": 34
+    },
+    {
+      "fullName": "Исполнитель 4",
+      "score": 94.2,
+      "quality": 4.5,
+      "onTimeRate": 1,
+      "closed": 34
+    },
+    {
+      "fullName": "Исполнитель 5",
+      "score": 94.2,
+      "quality": 4.5,
+      "onTimeRate": 1,
+      "closed": 34
+    },
+    {
+      "fullName": "Исполнитель 8",
+      "score": 94,
+      "quality": 4.48,
+      "onTimeRate": 1,
+      "closed": 33
+    },
+    {
+      "fullName": "Исполнитель 10",
+      "score": 94,
+      "quality": 4.48,
+      "onTimeRate": 1,
+      "closed": 33
+    },
+    {
+      "fullName": "Исполнитель 12",
+      "score": 94,
+      "quality": 4.48,
+      "onTimeRate": 1,
+      "closed": 33
+    },
+    {
+      "fullName": "Исполнитель 14",
+      "score": 94,
+      "quality": 4.48,
+      "onTimeRate": 1,
+      "closed": 33
+    },
+    {
+      "fullName": "Исполнитель 2",
+      "score": 93.7,
+      "quality": 4.5,
+      "onTimeRate": 1,
+      "closed": 34
+    },
+    {
+      "fullName": "Исполнитель 11",
+      "score": 69.3,
+      "quality": 4.52,
+      "onTimeRate": 0,
+      "closed": 33
+    },
+    {
+      "fullName": "Исполнитель 6",
+      "score": 69.2,
+      "quality": 4.5,
+      "onTimeRate": 0,
+      "closed": 34
+    },
+    {
+      "fullName": "Исполнитель 1",
+      "score": 55.6,
+      "quality": 3,
+      "onTimeRate": 0,
+      "closed": 33
+    }
+  ],
+  "brigades": [
+    {
+      "id": 3,
+      "name": "Бригада В",
+      "closed": 167,
+      "quality": 4.5,
+      "onTimeRate": 0.8023952095808383,
+      "score": 87
+    },
+    {
+      "id": 1,
+      "name": "Бригада А",
+      "closed": 167,
+      "quality": 4.5,
+      "onTimeRate": 0.7964071856287425,
+      "score": 86.9
+    },
+    {
+      "id": 2,
+      "name": "Бригада Б",
+      "closed": 166,
+      "quality": 4.2,
+      "onTimeRate": 0.8012048192771084,
+      "score": 82.9
+    }
+  ],
+  "dashboard": {
+    "active": 0,
+    "overdue": 0,
+    "equipmentInDowntime": 0,
+    "averageReactionMinutes": 5,
+    "averageCompletionMinutes": 239,
+    "topEquipment": [
+      {
+        "_count": 7,
+        "equipmentId": 3,
+        "name": "Конвейер К-3"
+      },
+      {
+        "_count": 3,
+        "equipmentId": 14,
+        "name": "Оборудование 14"
+      },
+      {
+        "_count": 3,
+        "equipmentId": 10,
+        "name": "Оборудование 10"
+      },
+      {
+        "_count": 3,
+        "equipmentId": 5,
+        "name": "Оборудование 5"
+      },
+      {
+        "_count": 3,
+        "equipmentId": 9,
+        "name": "Оборудование 9"
+      }
+    ],
+    "topExecutors": [
+      {
+        "id": 5,
+        "fullName": "Исполнитель 2",
+        "score": 4.5,
+        "closed": 12
+      },
+      {
+        "id": 6,
+        "fullName": "Исполнитель 3",
+        "score": 4.5,
+        "closed": 12
+      },
+      {
+        "id": 7,
+        "fullName": "Исполнитель 4",
+        "score": 4.5,
+        "closed": 12
+      },
+      {
+        "id": 8,
+        "fullName": "Исполнитель 5",
+        "score": 4.5,
+        "closed": 12
+      },
+      {
+        "id": 9,
+        "fullName": "Исполнитель 6",
+        "score": 4.5,
+        "closed": 12
+      }
+    ]
+  }
+}

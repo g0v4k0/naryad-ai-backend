@@ -10,7 +10,14 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "research:ai-review": "tsx research/r1-ai-review.ts && tsx research/r1b-prompt-ab.ts",
+    "research:intents": "tsx research/r2-intents.ts && FORCE_OLLAMA_URL=http://127.0.0.1:1 tsx research/r2-intents.ts",
+    "research:phash": "tsx research/r4-phash.ts",
+    "research:load": "tsx research/r5-load.ts",
+    "research:analytics": "tsx research/r6-analytics.ts",
+    "research:charts": "research/.venv/bin/python research/charts.py"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -43,7 +50,12 @@
     "@types/node": "^24.7.0",
     "@types/pdfkit": "^0.17.3",
     "@types/qrcode": "^1.5.6",
+    "@types/supertest": "^7.2.1",
+    "@vitest/coverage-v8": "^3.2.4",
+    "autocannon": "^8.0.0",
     "prisma": "^6.16.3",
+    "socket.io-client": "^4.8.4",
+    "supertest": "^7.3.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

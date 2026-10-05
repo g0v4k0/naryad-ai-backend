@@ -1,0 +1,96 @@
+import request from "supertest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { app } from "../../src/app.js";
+import { prisma } from "../../src/lib/prisma.js";
+import { bearer, insertOrder, seedBase, type Base } from "../helpers/db.js";
+import { mocks, ollamaReply } from "../helpers/mocks.js";
+
+let base: Base;
+beforeEach(async () => { base = await seedBase(); });
+
+/** Ollama mock that answers intent classification first, then the final answer. */
+function scripted(intent: Record<string, unknown>, answer = "Готово") {
+  mocks.ollama.handler = (body) => body.messages[0].content.startsWith("Определи намерение") ? ollamaReply(intent) : ollamaReply({ answer });
+}
+
+describe("AI-помощник мастера", () => {
+  it("FREE_EXECUTORS с фильтром специальности", async () => {
+    scripted({ intent: "FREE_EXECUTORS", specialty: "Электрик" }, "Свободен Электрик 2");
+    const res = await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message: "Кто свободен из электриков?" });
+    expect(res.body.data).toEqual([expect.objectContaining({ fullName: "Электрик 2" })]);
+    expect(res.body.answer).toBe("Свободен Электрик 2");
+    const finalPrompt = JSON.parse(mocks.ollama.calls[1].body.messages[1].content);
+    expect(finalPrompt.data).toHaveLength(1); // ответ строится только на DATA
+  });
+
+  it("OVERDUE возвращает только незакрытые просроченные", async () => {
+    scripted({ intent: "OVERDUE" });
+    await insertOrder(base, { status: "IN_PROGRESS", deadline: new Date(Date.now() - 60_000) });
+    await insertOrder(base, { status: "CLOSED", deadline: new Date(Date.now() - 60_000) });
+    await insertOrder(base, { status: "IN_PROGRESS" });
+    const res = await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message: "Что просрочено?" });
+    expect(res.body.data).toHaveLength(1);
+  });
+
+  it("EQUIPMENT_HISTORY ищет оборудование по названию", async () => {
+    scripted({ intent: "EQUIPMENT_HISTORY", equipmentQuery: "К-3" });
+    await insertOrder(base, { equipmentId: base.conveyor.id });
+    const res = await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message: "История конвейера К-3" });
+    expect(res.body.data).toHaveLength(1);
+  });
+
+  it.each([["SHIFT_REPORT"], ["ANOMALIES"], ["FAILURE_FORECAST"]])("%s отвечает 200", async (intent) => {
+    scripted({ intent });
+    expect((await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message: "Сводка" })).status).toBe(200);
+  });
+
+  it.each([
+    ["Кто свободен из электриков?", "FREE_EXECUTORS"], ["Что просрочено?", "OVERDUE"],
+    ["Дай прогноз отказов", "FAILURE_FORECAST"], ["Покажи аномалии", "ANOMALIES"], ["Как прошла смена", "SHIFT_REPORT"]
+  ])("без Ollama: «%s» → %s по ключевым словам", async (message, intent) => {
+    mocks.ollama.handler = () => ({ status: 503 });
+    const res = await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message });
+    expect(res.body.intent.intent).toBe(intent);
+    expect(res.body.answer).toContain(`Результат запроса ${intent}`);
+  });
+
+  it("история сохраняется по пользователю", async () => {
+    scripted({ intent: "OVERDUE" }, "Нет просрочек");
+    await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message: "Что просрочено?" });
+    const res = await request(app).get("/api/assistant/history").set(bearer(base.master));
+    expect(res.body.map((x: any) => x.role).sort()).toEqual(["assistant", "user"]);
+    expect((await request(app).get("/api/assistant/history").set(bearer(base.manager))).body).toHaveLength(0);
+  });
+
+  it("валидация длины сообщения", async () => {
+    expect((await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message: "a" })).status).toBe(400);
+    expect((await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message: "a".repeat(1001) })).status).toBe(400);
+  });
+});
+
+describe("рекомендации", () => {
+  it("исполнители ранжируются: доступность 50, рейтинг×8, очередь −3", async () => {
+    const done = await insertOrder(base, { status: "CLOSED", equipmentId: base.pump.id, assigneeId: base.worker2.id });
+    await prisma.aiAssessment.create({ data: { workOrderId: done.id, verdict: "ACCEPTED", score: 3, masterScore: 5, explanation: "x" } });
+    await insertOrder(base, { status: "IN_PROGRESS", assigneeId: base.worker1.id });
+    await prisma.user.update({ where: { id: base.worker1.id }, data: { employeeStatus: "BUSY" } });
+    const res = await request(app).get(`/api/recommendations/executors?equipmentId=${base.pump.id}`).set(bearer(base.master));
+    expect(res.body.map((x: any) => x.fullName)).toEqual(["Электрик 2", "Слесарь 1"]); // worker3 не на смене
+    expect(res.body[0]).toMatchObject({ score: 90, equipmentRating: 5, queue: 0 });
+    expect(res.body[1]).toMatchObject({ score: 21, equipmentRating: 3, queue: 1 });
+  });
+
+  it("шифр и норматив: LLM-ответ и fallback по справочнику", async () => {
+    mocks.ollama.handler = () => ollamaReply({ faultCodeId: base.fault.id, normativeId: base.normative.id, estimatedHours: 2, explanation: "Типовой износ" });
+    const ok = await request(app).post("/api/recommendations/work").set(bearer(base.master)).send({ description: "Гул подшипника", equipmentId: base.pump.id });
+    expect(ok.body).toMatchObject({ faultCodeId: base.fault.id, normativeId: base.normative.id });
+    expect(JSON.parse(mocks.ollama.calls[0].body.messages[1].content).normatives).toHaveLength(1);
+    mocks.ollama.handler = () => ({ status: 500 });
+    const fb = await request(app).post("/api/recommendations/work").set(bearer(base.master)).send({ description: "Гул подшипника", equipmentId: base.pump.id });
+    expect(fb.body).toMatchObject({ normativeId: base.normative.id, estimatedHours: 2, explanation: "Базовая рекомендация по справочнику" });
+  });
+
+  it.fails("BUG-6: рекомендации без equipmentId должны давать 400, а не 500", async () => {
+    expect((await request(app).get("/api/recommendations/executors").set(bearer(base.master))).status).toBe(400);
+  });
+});

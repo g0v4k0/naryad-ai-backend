@@ -10,7 +10,7 @@ async function loadLocal(fileUrl: string) {
   return readFile(resolve("uploads", basename(fileUrl)));
 }
 
-async function fingerprint(buffer: Buffer) {
+export async function fingerprint(buffer: Buffer) {
   const metadata = await sharp(buffer).metadata();
   const pixels = await sharp(buffer).resize(16, 16, { fit: "fill" }).grayscale().raw().toBuffer();
   const mean = pixels.reduce((sum, value) => sum + value, 0) / pixels.length;
@@ -22,7 +22,7 @@ async function fingerprint(buffer: Buffer) {
   };
 }
 
-function similarity(a: string, b: string) {
+export function similarity(a: string, b: string) {
   if (!a || !b || a.length !== b.length) return 0;
   let equal = 0;
   for (let i = 0; i < a.length; i++) if (a[i] === b[i]) equal++;

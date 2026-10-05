@@ -27,6 +27,19 @@ Backend полного прототипа кейса «НарядAI»: TypeScrip
 - JSON-выгрузка для будущей интеграции с 1С/ERP/ТОиР;
 - 500 исторических нарядов с заложенными закономерностями.
 
+## Документация
+
+- [docs/FEATURES.md](docs/FEATURES.md) — полное описание функционала, правил, формул и API.
+- [docs/TESTING_AND_RESEARCH.md](docs/TESTING_AND_RESEARCH.md) — автотесты (239, покрытие 97.8%), исследования качества AI, нагрузочные тесты, найденные дефекты, графики.
+
+## Развёртывание на сервере
+
+`docker-compose.server.yml` поднимает MySQL (`127.0.0.1:3407`) и API (`:8765`, host network) и использует уже работающие на сервере Ollama (`:11434`) и `whisper-service` (`:8090/transcribe`). Секреты — в `.env`.
+
+```bash
+docker compose -f docker-compose.server.yml up -d --build
+```
+
 ## Быстрый запуск
 
 ```bash
@@ -118,7 +131,8 @@ io("http://localhost:8765", { auth: { token } });
 
 ```bash
 npm run build
-npm test
+npm test                 # нужна БД naryad_test, см. docs/TESTING_AND_RESEARCH.md
+npm run test:coverage
 docker compose config
 ```
 

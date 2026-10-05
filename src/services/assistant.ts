@@ -4,7 +4,7 @@ import { buildAnomalies, predictFailures } from "./analytics.js";
 
 type Intent = { intent: "FREE_EXECUTORS" | "OVERDUE" | "EQUIPMENT_HISTORY" | "SHIFT_REPORT" | "ANOMALIES" | "FAILURE_FORECAST"; areaId?: number; equipmentId?: number; equipmentQuery?: string; specialty?: string };
 
-async function classify(message: string): Promise<Intent> {
+export async function classify(message: string): Promise<Intent> {
   try {
     return await askOllama<Intent>("Определи намерение. Верни только JSON intent из FREE_EXECUTORS, OVERDUE, EQUIPMENT_HISTORY, SHIFT_REPORT, ANOMALIES, FAILURE_FORECAST и необязательные specialty, equipmentQuery. Никогда не создавай SQL.", message);
   } catch {

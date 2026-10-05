@@ -1,0 +1,399 @@
+[
+  {
+    "message": "Кто свободен из электриков?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "FREE_EXECUTORS",
+    "correct": true,
+    "ms": 44,
+    "raw": {
+      "intent": "FREE_EXECUTORS",
+      "specialty": "Электрик"
+    }
+  },
+  {
+    "message": "Есть свободные слесари?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "FREE_EXECUTORS",
+    "correct": true,
+    "ms": 1,
+    "raw": {
+      "intent": "FREE_EXECUTORS"
+    }
+  },
+  {
+    "message": "Кого можно отправить на насос прямо сейчас?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 1,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Кто сейчас без работы?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 1,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Покажи доступных сварщиков",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 1,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Бос электриктер бар ма?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "kk",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Что просрочено?",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "OVERDUE",
+    "correct": true,
+    "ms": 1,
+    "raw": {
+      "intent": "OVERDUE"
+    }
+  },
+  {
+    "message": "Какие наряды не закрыты в срок?",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Где опаздываем по срокам?",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 2,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Список нарядов с истёкшим дедлайном",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 1,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Что горит по времени?",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Мерзімі өтіп кеткен наряд қайсы?",
+    "expected": "OVERDUE",
+    "lang": "kk",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "История ремонтов конвейера К-3",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Что чинили на насосе Н-1?",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Покажи все наряды по дробилке Д-2",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Как часто ломался Оборудование 5?",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Когда последний раз ремонтировали К-3?",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "К-3 конвейерінің жөндеу тарихы",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "kk",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Как прошла смена?",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Дай сводку за смену",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Сколько нарядов закрыли сегодня?",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Итоги смены",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Отчёт по выполненным работам за 12 часов",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Ауысым қалай өтті?",
+    "expected": "SHIFT_REPORT",
+    "lang": "kk",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Покажи аномалии",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "ANOMALIES",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "ANOMALIES"
+    }
+  },
+  {
+    "message": "Есть ли подозрительный расход материалов?",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Где повторяются одни и те же поломки?",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Найди странности в ремонтах",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Какие отказы после ППР?",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Ауытқуларды көрсет",
+    "expected": "ANOMALIES",
+    "lang": "kk",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Дай прогноз отказов",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "FAILURE_FORECAST",
+    "correct": true,
+    "ms": 0,
+    "raw": {
+      "intent": "FAILURE_FORECAST"
+    }
+  },
+  {
+    "message": "Что сломается в ближайший месяц?",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Какое оборудование в зоне риска?",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Вероятность поломки конвейеров",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Где ждать следующую аварию?",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Ақаулар болжамын бер",
+    "expected": "FAILURE_FORECAST",
+    "lang": "kk",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 0,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  }
+]

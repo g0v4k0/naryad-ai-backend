@@ -1,0 +1,412 @@
+[
+  {
+    "message": "Кто свободен из электриков?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "FREE_EXECUTORS",
+    "correct": true,
+    "ms": 3042,
+    "raw": {
+      "intent": "FREE_EXECUTORS",
+      "specialty": "электрики"
+    }
+  },
+  {
+    "message": "Есть свободные слесари?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "FREE_EXECUTORS",
+    "correct": true,
+    "ms": 5931,
+    "raw": {
+      "intent": "FREE_EXECUTORS"
+    }
+  },
+  {
+    "message": "Кого можно отправить на насос прямо сейчас?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "FREE_EXECUTORS",
+    "correct": true,
+    "ms": 7674,
+    "raw": {
+      "intent": "FREE_EXECUTORS",
+      "equipmentQuery": "насос"
+    }
+  },
+  {
+    "message": "Кто сейчас без работы?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "FREE_EXECUTORS",
+    "correct": true,
+    "ms": 4935,
+    "raw": {
+      "intent": "FREE_EXECUTORS"
+    }
+  },
+  {
+    "message": "Покажи доступных сварщиков",
+    "expected": "FREE_EXECUTORS",
+    "lang": "ru",
+    "predicted": "FREE_EXECUTORS",
+    "correct": true,
+    "ms": 3598,
+    "raw": {
+      "intent": "FREE_EXECUTORS",
+      "specialty": "welding"
+    }
+  },
+  {
+    "message": "Бос электриктер бар ма?",
+    "expected": "FREE_EXECUTORS",
+    "lang": "kk",
+    "predicted": "FREE_EXECUTORS",
+    "correct": true,
+    "ms": 5938,
+    "raw": {
+      "intent": "FREE_EXECUTORS",
+      "specialty": "electrical"
+    }
+  },
+  {
+    "message": "Что просрочено?",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "OVERDUE",
+    "correct": true,
+    "ms": 5683,
+    "raw": {
+      "intent": "OVERDUE"
+    }
+  },
+  {
+    "message": "Какие наряды не закрыты в срок?",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "OVERDUE",
+    "correct": true,
+    "ms": 7190,
+    "raw": {
+      "intent": "OVERDUE"
+    }
+  },
+  {
+    "message": "Где опаздываем по срокам?",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "OVERDUE",
+    "correct": true,
+    "ms": 1937,
+    "raw": {
+      "intent": "OVERDUE"
+    }
+  },
+  {
+    "message": "Список нарядов с истёкшим дедлайном",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "OVERDUE",
+    "correct": true,
+    "ms": 6178,
+    "raw": {
+      "intent": "OVERDUE"
+    }
+  },
+  {
+    "message": "Что горит по времени?",
+    "expected": "OVERDUE",
+    "lang": "ru",
+    "predicted": "ANOMALIES",
+    "correct": false,
+    "ms": 4180,
+    "raw": {
+      "intent": "ANOMALIES",
+      "equipmentQuery": "burning"
+    }
+  },
+  {
+    "message": "Мерзімі өтіп кеткен наряд қайсы?",
+    "expected": "OVERDUE",
+    "lang": "kk",
+    "predicted": "OVERDUE",
+    "correct": true,
+    "ms": 5898,
+    "raw": {
+      "intent": "OVERDUE"
+    }
+  },
+  {
+    "message": "История ремонтов конвейера К-3",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "EQUIPMENT_HISTORY",
+    "correct": true,
+    "ms": 1484,
+    "raw": {
+      "intent": "EQUIPMENT_HISTORY"
+    }
+  },
+  {
+    "message": "Что чинили на насосе Н-1?",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "EQUIPMENT_HISTORY",
+    "correct": true,
+    "ms": 2774,
+    "raw": {
+      "intent": "EQUIPMENT_HISTORY",
+      "specialty": "pump maintenance",
+      "equipmentQuery": "насос Н-1"
+    }
+  },
+  {
+    "message": "Покажи все наряды по дробилке Д-2",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": false,
+    "ms": 2136,
+    "raw": {
+      "intent": "SHIFT_REPORT",
+      "equipmentQuery": "Д-2"
+    }
+  },
+  {
+    "message": "Как часто ломался Оборудование 5?",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "EQUIPMENT_HISTORY",
+    "correct": true,
+    "ms": 2256,
+    "raw": {
+      "intent": "EQUIPMENT_HISTORY",
+      "equipmentQuery": "Оборудование 5"
+    }
+  },
+  {
+    "message": "Когда последний раз ремонтировали К-3?",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "ru",
+    "predicted": "EQUIPMENT_HISTORY",
+    "correct": true,
+    "ms": 6038,
+    "raw": {
+      "intent": "EQUIPMENT_HISTORY",
+      "equipmentQuery": "К-3"
+    }
+  },
+  {
+    "message": "К-3 конвейерінің жөндеу тарихы",
+    "expected": "EQUIPMENT_HISTORY",
+    "lang": "kk",
+    "predicted": "EQUIPMENT_HISTORY",
+    "correct": true,
+    "ms": 1743,
+    "raw": {
+      "intent": "EQUIPMENT_HISTORY",
+      "equipmentQuery": "К-3 конвейер"
+    }
+  },
+  {
+    "message": "Как прошла смена?",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 2454,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Дай сводку за смену",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 2485,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Сколько нарядов закрыли сегодня?",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 1876,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Итоги смены",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 1499,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Отчёт по выполненным работам за 12 часов",
+    "expected": "SHIFT_REPORT",
+    "lang": "ru",
+    "predicted": "SHIFT_REPORT",
+    "correct": true,
+    "ms": 3272,
+    "raw": {
+      "intent": "SHIFT_REPORT"
+    }
+  },
+  {
+    "message": "Ауысым қалай өтті?",
+    "expected": "SHIFT_REPORT",
+    "lang": "kk",
+    "predicted": "FREE_EXECUTORS",
+    "correct": false,
+    "ms": 5687,
+    "raw": {
+      "intent": "FREE_EXECUTORS"
+    }
+  },
+  {
+    "message": "Покажи аномалии",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "ANOMALIES",
+    "correct": true,
+    "ms": 2133,
+    "raw": {
+      "intent": "ANOMALIES"
+    }
+  },
+  {
+    "message": "Есть ли подозрительный расход материалов?",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "ANOMALIES",
+    "correct": true,
+    "ms": 2823,
+    "raw": {
+      "intent": "ANOMALIES"
+    }
+  },
+  {
+    "message": "Где повторяются одни и те же поломки?",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "EQUIPMENT_HISTORY",
+    "correct": false,
+    "ms": 5677,
+    "raw": {
+      "intent": "EQUIPMENT_HISTORY",
+      "equipmentQuery": "repeated faults"
+    }
+  },
+  {
+    "message": "Найди странности в ремонтах",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "ANOMALIES",
+    "correct": true,
+    "ms": 2369,
+    "raw": {
+      "intent": "ANOMALIES"
+    }
+  },
+  {
+    "message": "Какие отказы после ППР?",
+    "expected": "ANOMALIES",
+    "lang": "ru",
+    "predicted": "EQUIPMENT_HISTORY",
+    "correct": false,
+    "ms": 3968,
+    "raw": {
+      "intent": "EQUIPMENT_HISTORY"
+    }
+  },
+  {
+    "message": "Ауытқуларды көрсет",
+    "expected": "ANOMALIES",
+    "lang": "kk",
+    "predicted": "ANOMALIES",
+    "correct": true,
+    "ms": 2298,
+    "raw": {
+      "intent": "ANOMALIES"
+    }
+  },
+  {
+    "message": "Дай прогноз отказов",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "FAILURE_FORECAST",
+    "correct": true,
+    "ms": 1554,
+    "raw": {
+      "intent": "FAILURE_FORECAST"
+    }
+  },
+  {
+    "message": "Что сломается в ближайший месяц?",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "FAILURE_FORECAST",
+    "correct": true,
+    "ms": 2479,
+    "raw": {
+      "intent": "FAILURE_FORECAST"
+    }
+  },
+  {
+    "message": "Какое оборудование в зоне риска?",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "ANOMALIES",
+    "correct": false,
+    "ms": 2688,
+    "raw": {
+      "intent": "ANOMALIES",
+      "equipmentQuery": "зона риска"
+    }
+  },
+  {
+    "message": "Вероятность поломки конвейеров",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "FAILURE_FORECAST",
+    "correct": true,
+    "ms": 2889,
+    "raw": {
+      "intent": "FAILURE_FORECAST",
+      "equipmentQuery": "конвейеров"
+    }
+  },
+  {
+    "message": "Где ждать следующую аварию?",
+    "expected": "FAILURE_FORECAST",
+    "lang": "ru",
+    "predicted": "FAILURE_FORECAST",
+    "correct": true,
+    "ms": 1828,
+    "raw": {
+      "intent": "FAILURE_FORECAST"
+    }
+  },
+  {
+    "message": "Ақаулар болжамын бер",
+    "expected": "FAILURE_FORECAST",
+    "lang": "kk",
+    "predicted": "FAILURE_FORECAST",
+    "correct": true,
+    "ms": 1990,
+    "raw": {
+      "intent": "FAILURE_FORECAST"
+    }
+  }
+]
