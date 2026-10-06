@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { hashPin } from "../src/lib/pin.js";
+import { hashPassword } from "../src/lib/password.js";
 import { AiVerdict, EmployeeStatus, Priority, PrismaClient, Role, WorkOrderStatus, WorkType, type User } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -41,15 +41,17 @@ async function main() {
 
   const brigades = [];
   for (const name of ["Бригада А", "Бригада Б", "Бригада В"]) brigades.push(await prisma.brigade.create({ data: { name } }));
-  const pinHash = await hashPin(process.env.SEED_PIN ?? "1234");
-  const master = await prisma.user.create({ data: { login: "master", pinHash, fullName: "Мастер смены", role: Role.MASTER, isOnShift: true, employeeStatus: EmployeeStatus.AVAILABLE } });
-  await prisma.user.create({ data: { login: "manager", pinHash, fullName: "Начальник участка", role: Role.MANAGER, isOnShift: true, employeeStatus: EmployeeStatus.AVAILABLE } });
-  await prisma.user.create({ data: { login: "admin", pinHash, fullName: "Администратор", role: Role.ADMIN, isOnShift: true, employeeStatus: EmployeeStatus.AVAILABLE } });
+  // Demo phones: +7700000000X for staff, +77000001XX for executors.
+  const passwordHash = await hashPassword(process.env.SEED_PASSWORD ?? "123456");
+  const master = await prisma.user.create({ data: { login: "master", phone: "+77000000001", passwordHash, fullName: "Мастер смены", role: Role.MASTER, isOnShift: true, employeeStatus: EmployeeStatus.AVAILABLE } });
+  await prisma.user.create({ data: { login: "manager", phone: "+77000000002", passwordHash, fullName: "Начальник участка", role: Role.MANAGER, isOnShift: true, employeeStatus: EmployeeStatus.AVAILABLE } });
+  await prisma.user.create({ data: { login: "admin", phone: "+77000000003", passwordHash, fullName: "Администратор", role: Role.ADMIN, isOnShift: true, employeeStatus: EmployeeStatus.AVAILABLE } });
   const executors: User[] = [];
   const specialties = ["Слесарь", "Электрик", "Сварщик"];
   for (let i = 1; i <= 15; i++) executors.push(await prisma.user.create({ data: {
     login: `worker${i}`,
-    pinHash,
+    phone: `+770000001${String(i).padStart(2, "0")}`,
+    passwordHash,
     fullName: `Исполнитель ${i}`,
     role: Role.EXECUTOR,
     specialty: specialties[i % specialties.length],

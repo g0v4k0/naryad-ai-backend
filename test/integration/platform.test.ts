@@ -42,11 +42,20 @@ describe("справочники и администрирование", () => {
     expect((await request(app).post("/api/admin/brigades").set(a).send({ name: "Бригада Б" })).status).toBe(201);
     const norm = await request(app).post("/api/admin/normatives").set(a).send({ name: "Ревизия", equipmentType: "Насос", hours: 1.5, materials: [{ materialId: base.grease.id, quantity: 0.5 }] });
     expect(norm.body.materialNorms).toHaveLength(1);
-    const user = await request(app).post("/api/admin/users").set(a).send({ login: "newbie", pin: "5678", fullName: "Новый сотрудник", role: "EXECUTOR", language: "kk" });
-    expect(user.body.pinHash).toBeUndefined();
-    expect((await request(app).post("/api/auth/login").send({ login: "newbie", pin: "5678" })).status).toBe(200);
+    expect((await request(app).post("/api/admin/users").set(a).send({ phone: "+77020000001", password: "12345", fullName: "Новый сотрудник", role: "EXECUTOR" })).status).toBe(400);
+    expect((await request(app).post("/api/admin/users").set(a).send({ phone: "8 701 000 00 01", password: "start123", fullName: "Дубль номера", role: "EXECUTOR" })).status).toBe(409);
+    const user = await request(app).post("/api/admin/users").set(a).send({ phone: "8 (702) 000-00-01", password: "start123", fullName: "Новый сотрудник", role: "EXECUTOR", language: "kk" });
+    expect(user.status).toBe(201);
+    expect(user.body).toMatchObject({ phone: "+77020000001", login: "+77020000001", language: "kk" });
+    expect(user.body.passwordHash).toBeUndefined();
+    expect((await request(app).post("/api/auth/login").send({ phone: "+77020000001", password: "start123" })).status).toBe(200);
+    const edited = await request(app).patch(`/api/admin/users/${user.body.id}`).set(a).send({ phone: "+77020000002", password: "reset456", fullName: "Новый сотрудник 2" });
+    expect(edited.body).toMatchObject({ phone: "+77020000002", fullName: "Новый сотрудник 2" });
+    expect(edited.body.passwordHash).toBeUndefined();
+    expect((await request(app).post("/api/auth/login").send({ phone: "+77020000001", password: "start123" })).status).toBe(401);
+    expect((await request(app).post("/api/auth/login").send({ phone: "+77020000002", password: "reset456" })).status).toBe(200);
     expect((await request(app).patch(`/api/admin/users/${user.body.id}/shift`).set(a).send({ isOnShift: true, employeeStatus: "AVAILABLE" })).body.isOnShift).toBe(true);
-    expect((await request(app).get("/api/admin/users").set(a)).body.every((u: any) => !u.pinHash)).toBe(true);
+    expect((await request(app).get("/api/admin/users").set(a)).body.every((u: any) => !u.passwordHash)).toBe(true);
     expect((await request(app).delete(`/api/admin/equipment/${eq.id}`).set(a)).status).toBe(204);
     expect((await request(app).delete(`/api/admin/unknown/1`).set(a)).status).toBe(404);
     for (const [resource, id] of [["areas", area.id], ["normatives", norm.body.id]] as const) {

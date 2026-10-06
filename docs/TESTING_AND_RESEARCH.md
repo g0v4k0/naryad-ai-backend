@@ -288,7 +288,7 @@ OUT_SUFFIX=-after FORCE_OLLAMA_URL=http://127.0.0.1:1 npx tsx research/r2-intent
 OUT_SUFFIX=-holdout HOLDOUT=1 npx tsx research/r2-intents.ts           # R2, отложенный набор
 research/.venv/bin/python research/r3-whisper.py                       # R3 (~4 мин, GPU)
 npm run research:phash                                                 # R4
-OUT_SUFFIX=-after LOAD_PIN=<ПИН master> npx tsx research/r5-load.ts    # R5 (нагружает рабочий API ~3 мин)
+OUT_SUFFIX=-after LOAD_PASSWORD=<пароль master> npx tsx research/r5-load.ts    # R5 (нагружает рабочий API ~3 мин)
 OUT_SUFFIX=-after npx tsx research/r6-analytics.ts                     # R6
 npm run research:charts                                                # графики и summary.json
 ```

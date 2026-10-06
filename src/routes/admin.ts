@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { Role } from "@prisma/client";
-import { hashPin } from "../lib/pin.js";
+import { hashPassword, newPasswordSchema } from "../lib/password.js";
+import { phoneSchema } from "../lib/phone.js";
 import { z } from "zod";
 import { asyncHandler } from "../lib/http.js";
 import { prisma } from "../lib/prisma.js";
@@ -9,7 +10,7 @@ import { allow, auth } from "../middleware/auth.js";
 export const adminRouter = Router();
 adminRouter.use(auth, allow(Role.ADMIN));
 
-adminRouter.get("/users", asyncHandler(async (_req, res) => res.json(await prisma.user.findMany({ omit: { pinHash: true }, include: { brigade: true }, orderBy: { fullName: "asc" } }))));
+adminRouter.get("/users", asyncHandler(async (_req, res) => res.json(await prisma.user.findMany({ omit: { passwordHash: true }, include: { brigade: true }, orderBy: { fullName: "asc" } }))));
 
 adminRouter.post("/areas", asyncHandler(async (req, res) => res.status(201).json(await prisma.area.create({ data: z.object({ name: z.string().min(2) }).parse(req.body) }))));
 adminRouter.patch("/areas/:id", asyncHandler(async (req, res) => res.json(await prisma.area.update({ where: { id: Number(req.params.id) }, data: z.object({ name: z.string().min(2) }).parse(req.body) }))));
@@ -40,14 +41,29 @@ adminRouter.post("/normatives", asyncHandler(async (req, res) => {
   const { materials, ...data } = input;
   res.status(201).json(await prisma.workNormative.create({ data: { ...data, materialNorms: { create: materials } }, include: { materialNorms: true } }));
 }));
+const userFields = {
+  phone: phoneSchema,
+  fullName: z.string().min(3),
+  role: z.enum(["MASTER", "EXECUTOR", "MANAGER", "ADMIN"]),
+  specialty: z.string().optional(),
+  grade: z.number().int().optional(),
+  brigadeId: z.number().int().positive().optional(),
+  language: z.enum(["ru", "kk"])
+};
 adminRouter.post("/users", asyncHandler(async (req, res) => {
-  const input = z.object({ login: z.string().min(3), pin: z.string().min(4), fullName: z.string().min(3), role: z.enum(["MASTER", "EXECUTOR", "MANAGER", "ADMIN"]), specialty: z.string().optional(), grade: z.number().int().optional(), brigadeId: z.number().int().positive().optional(), language: z.enum(["ru", "kk"]).default("ru") }).parse(req.body);
-  const { pin, ...data } = input;
-  res.status(201).json(await prisma.user.create({ data: { ...data, pinHash: await hashPin(pin) }, omit: { pinHash: true } }));
+  const input = z.object({ ...userFields, password: newPasswordSchema, language: userFields.language.default("ru"), login: z.string().min(3).optional() }).parse(req.body);
+  // `login` stays as the internal/1C identifier; the phone is a good default when the admin does not set one.
+  const { password, login, ...data } = input;
+  res.status(201).json(await prisma.user.create({ data: { ...data, login: login ?? data.phone, passwordHash: await hashPassword(password) }, omit: { passwordHash: true } }));
+}));
+adminRouter.patch("/users/:id", asyncHandler(async (req, res) => {
+  const input = z.object({ ...userFields, password: newPasswordSchema, brigadeId: userFields.brigadeId.nullable() }).partial().parse(req.body);
+  const { password, ...data } = input;
+  res.json(await prisma.user.update({ where: { id: Number(req.params.id) }, data: { ...data, ...(password ? { passwordHash: await hashPassword(password) } : {}) }, omit: { passwordHash: true } }));
 }));
 adminRouter.patch("/users/:id/shift", asyncHandler(async (req, res) => {
   const input = z.object({ isOnShift: z.boolean(), employeeStatus: z.enum(["AVAILABLE", "BUSY", "QUEUED", "OFF_SHIFT"]) }).parse(req.body);
-  res.json(await prisma.user.update({ where: { id: Number(req.params.id) }, data: input, omit: { pinHash: true } }));
+  res.json(await prisma.user.update({ where: { id: Number(req.params.id) }, data: input, omit: { passwordHash: true } }));
 }));
 
 adminRouter.delete("/:resource/:id", asyncHandler(async (req, res) => {

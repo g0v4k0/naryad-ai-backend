@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { hashPin } from "../lib/pin.js";
+import { hashPassword } from "../lib/password.js";
+import { normalizePhone } from "../lib/phone.js";
 import { IntegrationEntity, IntegrationStatus, Prisma, Role, WorkOrderStatus } from "@prisma/client";
 import { config } from "../config.js";
 import { HttpError } from "../lib/http.js";
@@ -65,10 +66,12 @@ async function importItem(entity: IntegrationEntity, item: ImportItem) {
     const login = text(item.login, "login");
     const role = String(item.role ?? "EXECUTOR") as Role;
     if (!Object.values(Role).includes(role)) throw new Error(`Неизвестная роль ${role}`);
-    const data = { login, fullName: text(item.fullName, "fullName"), role, specialty: item.specialty ? String(item.specialty) : null, grade: item.grade ? Number(item.grade) : null, brigadeId: brigadeMap?.localId ?? null, isOnShift: Boolean(item.isOnShift), language: String(item.language ?? "ru") };
+    const phone = item.phone ? normalizePhone(String(item.phone)) : undefined;
+    if (phone === null) throw new Error(`Неверный номер телефона ${item.phone}`);
+    const data = { login, ...(phone ? { phone } : {}), fullName: text(item.fullName, "fullName"), role, specialty: item.specialty ? String(item.specialty) : null, grade: item.grade ? Number(item.grade) : null, brigadeId: brigadeMap?.localId ?? null, isOnShift: Boolean(item.isOnShift), language: String(item.language ?? "ru") };
     const row = current
       ? await prisma.user.update({ where: { id: current.localId }, data })
-      : await prisma.user.upsert({ where: { login }, create: { ...data, pinHash: await hashPin(randomUUID()) }, update: data });
+      : await prisma.user.upsert({ where: { login }, create: { ...data, passwordHash: await hashPassword(randomUUID()) }, update: data });
     localId = row.id;
   } else if (entity === "NORMATIVE") {
     const equipmentMap = item.equipmentExternalId ? await mapping("EQUIPMENT", String(item.equipmentExternalId)) : null;

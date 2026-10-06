@@ -3,7 +3,9 @@ import jwt from "jsonwebtoken";
 import { Prisma, Role, type User } from "@prisma/client";
 import { prisma } from "../../src/lib/prisma.js";
 
-let pinHash: string | undefined;
+/** Password of every test user; stored as a legacy bcrypt hash to exercise the rehash path. */
+export const TEST_PASSWORD = "secret12";
+let passwordHash: string | undefined;
 
 export async function resetDb() {
   const tables = Object.values(Prisma.ModelName);
@@ -19,8 +21,8 @@ export function tokenFor(user: Pick<User, "id" | "role">) {
 export const bearer = (user: Pick<User, "id" | "role">) => ({ authorization: `Bearer ${tokenFor(user)}` });
 
 export async function createUser(data: Partial<Prisma.UserUncheckedCreateInput> & { login: string; role: Role }) {
-  pinHash ??= await bcrypt.hash("1234", 4);
-  return prisma.user.create({ data: { fullName: data.login, pinHash, isOnShift: true, employeeStatus: "AVAILABLE", ...data } });
+  passwordHash ??= await bcrypt.hash(TEST_PASSWORD, 4);
+  return prisma.user.create({ data: { fullName: data.login, passwordHash, isOnShift: true, employeeStatus: "AVAILABLE", ...data } });
 }
 
 /** Minimal plant: 2 areas, 3 equipment units, staff of every role, fault codes, materials, one normative. */
@@ -32,12 +34,12 @@ export async function seedBase() {
   const conveyor = await prisma.equipment.create({ data: { name: "Конвейер К-3", inventoryNumber: "INV-003", type: "Конвейер", criticality: 5, areaId: area.id } });
   const crusher = await prisma.equipment.create({ data: { name: "Дробилка Д-2", inventoryNumber: "INV-002", type: "Дробилка", criticality: 4, areaId: area2.id } });
   const brigade = await prisma.brigade.create({ data: { name: "Бригада А" } });
-  const master = await createUser({ login: "master", role: Role.MASTER, fullName: "Мастер" });
-  const manager = await createUser({ login: "manager", role: Role.MANAGER, fullName: "Начальник" });
-  const admin = await createUser({ login: "admin", role: Role.ADMIN, fullName: "Админ" });
-  const worker1 = await createUser({ login: "worker1", role: Role.EXECUTOR, fullName: "Слесарь 1", specialty: "Слесарь", grade: 5, brigadeId: brigade.id });
-  const worker2 = await createUser({ login: "worker2", role: Role.EXECUTOR, fullName: "Электрик 2", specialty: "Электрик", grade: 4, brigadeId: brigade.id });
-  const worker3 = await createUser({ login: "worker3", role: Role.EXECUTOR, fullName: "Сварщик 3", specialty: "Сварщик", isOnShift: false, employeeStatus: "OFF_SHIFT" });
+  const master = await createUser({ login: "master", phone: "+77010000001", role: Role.MASTER, fullName: "Мастер" });
+  const manager = await createUser({ login: "manager", phone: "+77010000002", role: Role.MANAGER, fullName: "Начальник" });
+  const admin = await createUser({ login: "admin", phone: "+77010000003", role: Role.ADMIN, fullName: "Админ" });
+  const worker1 = await createUser({ login: "worker1", phone: "+77010000004", role: Role.EXECUTOR, fullName: "Слесарь 1", specialty: "Слесарь", grade: 5, brigadeId: brigade.id });
+  const worker2 = await createUser({ login: "worker2", phone: "+77010000005", role: Role.EXECUTOR, fullName: "Электрик 2", specialty: "Электрик", grade: 4, brigadeId: brigade.id });
+  const worker3 = await createUser({ login: "worker3", phone: "+77010000006", role: Role.EXECUTOR, fullName: "Сварщик 3", specialty: "Сварщик", isOnShift: false, employeeStatus: "OFF_SHIFT" });
   const fault = await prisma.faultCode.create({ data: { code: "М-01", name: "Износ подшипника", category: "М" } });
   const fault2 = await prisma.faultCode.create({ data: { code: "Э-02", name: "Обрыв питания", category: "Э" } });
   const bearing = await prisma.material.create({ data: { name: "Подшипник 6205", unit: "шт" } });

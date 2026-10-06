@@ -26,7 +26,7 @@ describe("1С: входящий импорт", () => {
     await imp("MATERIAL", [{ externalId: "M1", name: "Подшипник", unit: "шт" }]);
     await imp("EQUIPMENT", [{ externalId: "E1", name: "Насос", inventoryNumber: "INV-9", type: "Насос", areaExternalId: "A1" }]);
     await imp("EMPLOYEE", [
-      { externalId: "U1", login: "m1c", fullName: "Мастер 1С", role: "MASTER" },
+      { externalId: "U1", login: "m1c", phone: "8 703 000 00 01", fullName: "Мастер 1С", role: "MASTER" },
       { externalId: "U2", login: "w1c", fullName: "Слесарь 1С", role: "EXECUTOR", brigadeExternalId: "B1", isOnShift: true }
     ]);
     await imp("NORMATIVE", [{ externalId: "N1", name: "Замена", equipmentExternalId: "E1", faultCodeExternalId: "F1", hours: 3 }]);
@@ -34,6 +34,8 @@ describe("1С: входящий импорт", () => {
     expect(res.status).toBe(200);
     const order = await prisma.workOrder.findUniqueOrThrow({ where: { number: "1C-0001" }, include: { assignee: true } });
     expect(order.assignee.login).toBe("w1c");
+    expect(order.assignee.phone).toBeNull();
+    expect((await prisma.user.findUniqueOrThrow({ where: { login: "m1c" } })).phone).toBe("+77030000001");
     expect(await prisma.integrationMapping.count()).toBe(9);
     // обновление по тому же externalId меняет запись, а не создаёт новую
     await imp("AREA", [{ externalId: "A1", name: "Дробление-2" }]);
@@ -53,6 +55,12 @@ describe("1С: входящий импорт", () => {
     expect(res.status).toBe(422);
     expect(res.body.error).toBe("Элемент E9: Не найден участок 1С NOPE");
     expect(await prisma.integrationJob.findUnique({ where: { idempotencyKey: "1c:in:fail-request-1" } })).toMatchObject({ status: "FAILED", lastError: "Элемент E9: Не найден участок 1С NOPE" });
+  });
+
+  it("неверный телефон сотрудника → 422", async () => {
+    const res = await imp("EMPLOYEE", [{ externalId: "U9", login: "bad-phone", phone: "123", fullName: "Сотрудник" }], "bad-phone-request");
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe("Элемент U9: Неверный номер телефона 123");
   });
 
   it("валидация пакета", async () => {

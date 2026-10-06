@@ -116,7 +116,9 @@ model Brigade {
 model User {
   id                Int                @id @default(autoincrement())
   login             String             @unique
-  pinHash           String
+  /// E.164, e.g. +77001234567; used to sign in. Null until set (e.g. employees imported from 1C).
+  phone             String?            @unique @db.VarChar(20)
+  passwordHash      String
   fullName          String
   role              Role
   specialty         String?

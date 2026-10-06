@@ -39,7 +39,7 @@
 | Realtime | Socket.IO на том же адресе |
 | Проверка | `GET /health` → `{"status":"ok"}`; `GET /health/ready` → `{"database":true,"ollama":true}` (503, если AI недоступен) |
 
-Тестовые логины: `master`, `manager`, `admin`, `worker1` … `worker15`. ПИН-коды на сервере выдаёт администратор: они лежат в `demo-credentials.local.txt` на сервере и в git не хранятся.
+Тестовые аккаунты входят по телефону: `+77000000001` — мастер, `+77000000002` — руководитель, `+77000000003` — админ, `+77000000101` … `+77000000115` — исполнители 1–15. Пароли выдаёт администратор: они лежат в `demo-credentials.local.txt` на сервере и в git не хранятся.
 
 ---
 
@@ -58,24 +58,32 @@
 
 ### `POST /api/auth/login`
 
+Вход — по **номеру телефона и паролю**.
+
 ```json
-{ "login": "worker2", "pin": "123456" }
+{ "phone": "+7 701 234 56 78", "password": "secret12" }
 ```
 Ответ `200`:
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIs…",
-  "user": { "id": 5, "fullName": "Исполнитель 2", "role": "EXECUTOR", "employeeStatus": "AVAILABLE" }
+  "user": { "id": 5, "fullName": "Исполнитель 2", "phone": "+77012345678", "role": "EXECUTOR", "employeeStatus": "AVAILABLE" }
 }
 ```
 
+**Телефон** можно отправлять в любой привычной записи — сервер сам приведёт его к виду `+7XXXXXXXXXX`:
+`+7 (701) 234-56-78`, `8 701 234 56 78`, `87012345678`, `7012345678` → `+77012345678`. Номера других стран — с `+` и кодом страны. В поле ввода удобно ставить маску `+7 (___) ___-__-__` и клавиатуру `phone-pad`.
+
+**Пароль** — от 6 до 128 любых символов. Правило «от 6» проверяется при создании и смене пароля; при входе сервер принимает пароль любой длины, чтобы не заблокировать старые аккаунты.
+
 | Ответ | Что показать |
 |---|---|
-| `401 {"error":"Неверный логин или ПИН"}` | «Неверный логин или ПИН» |
+| `401 {"error":"Неверный номер телефона или пароль"}` | этот текст |
 | `429` + заголовок `Retry-After: <секунды>` | «Слишком много попыток. Повторите через N мин.» и заблокировать кнопку на время из заголовка |
-| `400` | ПИН короче 4 или длиннее 12 символов |
+| `400`, в `details` — «Неверный номер телефона» | номер короче 10 или длиннее 15 цифр — подсветить поле телефона |
+| `400` без `details` про телефон | пустой пароль |
 
-- После **5 неверных ПИН** логин блокируется на 15 минут — **даже верный ПИН** в это время вернёт 429.
+- После **5 неверных паролей** номер блокируется на 15 минут — **даже верный пароль** в это время вернёт 429. Разные записи одного номера (`8 701…` и `+7 701…`) считаются одним номером.
 - Если с одного устройства или IP было **30 неудач**, блокируется IP.
 - Токен живёт **12 часов** (одна смена). Обновления токена нет: при любом `401` на защищённом запросе отправляйте пользователя на экран входа.
 - Храните токен в защищённом хранилище (Keychain / Keystore / `SecureStore`), не в `localStorage` веб-панели, если есть возможность.
@@ -83,9 +91,23 @@
 ### `GET /api/auth/me`
 
 ```json
-{ "id": 5, "login": "worker2", "fullName": "Исполнитель 2", "role": "EXECUTOR", "specialty": "Сварщик",
+{ "id": 5, "login": "worker2", "phone": "+77012345678", "fullName": "Исполнитель 2", "role": "EXECUTOR", "specialty": "Сварщик",
   "grade": 5, "brigadeId": 3, "employeeStatus": "AVAILABLE", "isOnShift": true, "language": "ru" }
 ```
+`login` — внутренний идентификатор (для 1С), для входа не используется.
+
+### Смена пароля — `POST /api/auth/change-password`
+
+```json
+{ "currentPassword": "secret12", "newPassword": "newSecret1" }
+```
+| Ответ | Что показать |
+|---|---|
+| `204` | «Пароль изменён». Токен остаётся рабочим, перелогиниваться не нужно |
+| `400 Текущий пароль указан неверно` | подсветить поле текущего пароля. Это **не 401**, выкидывать на экран входа не нужно |
+| `400`, в `details` — «Пароль должен быть не короче 6 символов» | подсветить новый пароль |
+
+Забытый пароль сбрасывает администратор (`PATCH /api/admin/users/:id` с `password`), восстановления по SMS нет.
 
 ### Выход
 
@@ -103,6 +125,39 @@
 | `ADMIN` | веб | все | всё, что может мастер, плюс справочники, пользователи, смены |
 
 Если запрос не разрешён роли, сервер отвечает `403 {"error":"Недостаточно прав"}`. Скрывайте недоступные кнопки заранее по `role`.
+
+### Доступ по группам запросов
+
+| Запросы | `EXECUTOR` | `MASTER` | `MANAGER` | `ADMIN` |
+|---|:-:|:-:|:-:|:-:|
+| `auth/me`, `notifications`, `devices`, `uploads`, `ai/transcribe` | ✅ | ✅ | ✅ | ✅ |
+| `references/*`, `equipment/*` | ✅ | ✅ | ✅ | ✅ |
+| `assistant/*`, `recommendations/*` | ✅ | ✅ | ✅ | ✅ |
+| `GET work-orders`, `GET work-orders/:id` | свои | ✅ | ✅ | ✅ |
+| `POST work-orders`, `PATCH work-orders/:id`, `reassign` | — | ✅ | — | ✅ |
+| `analytics/*`, `reports/*` | — | ✅ | ✅ | ✅ |
+| `integrations/*` (панель 1С) | — | — | ✅ | ✅ |
+| `admin/*` | — | — | — | ✅ |
+
+### Экраны и запросы
+
+| Экран | Роль | Запросы |
+|---|---|---|
+| Вход | все | `POST /api/auth/login` → `GET /api/auth/me` → `POST /api/devices` |
+| Очередь исполнителя | `EXECUTOR` | `GET /api/work-orders?compact=1&status=ISSUED,QUEUED,ACCEPTED,IN_PROGRESS,PAUSED,REWORK`; Socket.IO `work-order:changed` |
+| Карточка наряда | все | `GET /api/work-orders/:id`; кнопки — `POST /api/work-orders/:id/action` |
+| Завершение работ | `EXECUTOR` | `GET /api/references/fault-codes`, `/materials`, `/normatives?equipmentId=`; `POST /api/uploads`; `POST /api/ai/transcribe`; `action: COMPLETE` |
+| Список нарядов мастера | `MASTER` | `GET /api/work-orders?compact=1&status=…&areaId=…` с `limit`/`offset` |
+| Создание наряда | `MASTER` | `/api/references/areas`, `/equipment?areaId=`, `/executors`, `/normatives?equipmentId=`; `GET /api/recommendations/executors`; `POST /api/recommendations/work`; `POST /api/uploads`; `POST /api/work-orders` |
+| Проверка закрытия | `MASTER` | `GET /api/work-orders?status=AI_REVIEW`; `action: CLOSE` / `SEND_TO_REWORK` |
+| Сканер QR | все | `GET /api/equipment/qr/:token` → `GET /api/equipment/:id/history` |
+| Уведомления | все | `GET /api/notifications`, `PATCH /api/notifications/:id/read`; Socket.IO `notification:new` |
+| AI-помощник | `MASTER` | `POST /api/assistant/chat`, `GET /api/assistant/history` |
+| Дашборд | `MANAGER`, `MASTER` | `GET /api/analytics/dashboard`, `/failure-forecast`, `/anomalies` |
+| Отчёты и рейтинги | `MANAGER`, `MASTER` | `GET /api/reports/*`, `export.xlsx`, `export.pdf` |
+| Справочники и пользователи | `ADMIN` | `GET /api/references/*`, `GET /api/admin/users`, `POST`/`PATCH`/`DELETE /api/admin/*` |
+| Смены | `ADMIN` | `GET /api/admin/users`, `PATCH /api/admin/users/:id/shift` |
+| Интеграция 1С | `ADMIN`, `MANAGER` | `GET /api/integrations/1c/jobs`, `/1c/mappings`, `POST /1c/run`, `/1c/jobs/:id/retry`, `/1c/push/orders` |
 
 ---
 
@@ -138,6 +193,7 @@
 
 - Общее количество записей приходит в заголовке **`X-Total-Count`**.
 - Сортировка: сначала по приоритету (аварийные первыми), затем по сроку.
+- В `status` передавайте только значения из таблицы выше: неизвестное значение сервер не проверяет и отвечает `500`.
 
 Элемент `compact=1`:
 ```json
@@ -202,6 +258,15 @@
 
 Ответ `201` — полный наряд. Номер присваивается автоматически (`N-xxxxxxxx`).
 
+| Ошибка | Причина |
+|---|---|
+| `400 Проверьте оборудование и исполнителя` | оборудование не на этом участке или исполнитель не `EXECUTOR` |
+| `400 Норматив не найден` | неверный `normativeId` |
+| `400 Ошибка в данных запроса` | нет полей, нет ни `deadline`, ни `normativeId` (`details` → «Укажите срок или норматив») |
+| `409 Такая запись уже существует` | редкое совпадение номера при двух нарядах в одну миллисекунду — можно повторить |
+
+Побочные эффекты: исполнитель получает уведомление `NEW_ORDER` (для аварийного — push в канал `emergency_orders`), для аварийного **типа** открывается простой оборудования, все мастера и исполнитель получают `work-order:changed`.
+
 > ⚠️ **Создание не идемпотентно**: повторная отправка создаст второй наряд. Не ставьте создание в автоматическую офлайн-очередь без проверки; см. [§7](#7-офлайн-очередь).
 
 **Подсказки для формы создания:**
@@ -214,7 +279,9 @@
 ```json
 { "priority": "HIGH", "deadline": "2026-10-06T08:00:00.000Z", "comment": "Перенос по согласованию" }
 ```
-Все поля необязательны. Ответ — полный наряд.
+Все поля необязательны. Ответ — полный наряд. В журнал пишется событие `EDIT`.
+
+Сервер не проверяет статус при правке, поэтому показывайте «Изменить» только для активных нарядов: `ISSUED`, `ACCEPTED`, `QUEUED`, `IN_PROGRESS`, `PAUSED`, `REWORK`.
 
 ### Переназначение — `POST /api/work-orders/:id/reassign` (мастер, админ)
 
@@ -511,7 +578,7 @@ POST /api/devices
 |---|---|
 | `GET /api/equipment/:id/qr.png` | PNG 512×512 для печати; нужен заголовок авторизации, поэтому скачивайте через `fetch` → blob |
 | `GET /api/equipment/qr/:token` | карточка по токену из QR: `{ …equipment, area: { id, name } }`; 404 — неизвестный QR |
-| `GET /api/equipment/:id/history` | оборудование с `orders[]`: шифр, AI-оценка, простой (`downtime`), материалы |
+| `GET /api/equipment/:id/history` | оборудование с `area` и `orders[]` (новые первыми): шифр, AI-оценка, простой (`downtime`), материалы. Для несуществующего id приходит `200` с телом `null`, а не 404 |
 
 QR содержит ссылку вида `…/equipment/<qrToken>`. **Берите последний сегмент пути** — домен в ссылке может отличаться. Сценарий: исполнитель сканирует QR → `GET /api/equipment/qr/<qrToken>` → карточка, история и «Создать наряд» с уже выбранным оборудованием.
 
@@ -570,7 +637,18 @@ QR содержит ссылку вида `…/equipment/<qrToken>`. **Бери�
 
 ## 17. Аналитика, отчёты, выгрузки
 
-Доступны мастеру, руководителю и админу. Отчёты принимают фильтры `from`, `to` (ISO), `areaId`, `equipmentId`, `executorId`, `brigadeId`.
+Доступны мастеру, руководителю и админу.
+
+**Фильтры отчётов** работают не везде одинаково:
+
+| Запрос | Принимает | Период по умолчанию | По какой дате |
+|---|---|---|---|
+| `reports/shift`, `export.xlsx`, `export.pdf` | `from`, `to`, `areaId`, `equipmentId`, `executorId`, `brigadeId` | 12 ч / 30 дней / 12 ч | создание наряда |
+| `reports/ratings`, `reports/brigade-ratings` | только `from` | 30 дней | закрытие наряда |
+| `reports/materials` | `from`, `areaId` | 30 дней | создание наряда |
+| `reports/downtime` | только `from` | 30 дней | начало простоя |
+
+Остальные параметры эти запросы молча игнорируют. `export.pdf` содержит не больше 200 нарядов.
 
 | Запрос | Ответ |
 |---|---|
@@ -582,8 +660,32 @@ QR содержит ссылку вида `…/equipment/<qrToken>`. **Бери�
 | `GET /api/reports/ratings` | `[{ id, fullName, score 0–100, quality, onTimeRate 0–1, reworkRate 0–1, productivity, unjustifiedRejects, complexityBonus, closed, explanation }]` |
 | `GET /api/reports/brigade-ratings` | `[{ id, name, closed, quality, onTimeRate, score }]` |
 | `GET /api/reports/materials` | `[{ materialId, _sum: { quantity: "2" }, _count, material }]` |
-| `GET /api/reports/downtime` | `[{ …простой, minutes, equipment, workOrder }]` |
-| `GET /api/reports/work-order/:id` | полная карточка наряда для печати |
+| `GET /api/reports/downtime` | `[{ id, equipmentId, workOrderId, startedAt, endedAt, reason, minutes, equipment: { …, area }, workOrder: { …, faultCode } }]`; у открытого простоя `endedAt: null`, `minutes` — до текущего момента |
+| `GET /api/reports/work-order/:id` | карточка для печати: наряд с `area`, `equipment`, `creator.fullName`, `assignee.fullName`, `events` (без `actor`), `photos`, `materialUsages`, `aiAssessment`; несуществующий id → `200 null` |
+
+Пример `GET /api/analytics/dashboard`:
+```json
+{
+  "active": 18, "overdue": 3, "equipmentInDowntime": 2,
+  "averageReactionMinutes": 7, "averageCompletionMinutes": 142,
+  "topEquipment": [{ "equipmentId": 3, "_count": 6, "name": "Конвейер К-3" }],
+  "topExecutors": [{ "id": 7, "fullName": "Исполнитель 3", "score": 4.8, "closed": 12 }]
+}
+```
+- `active` — наряды в `ISSUED`, `ACCEPTED`, `QUEUED`, `IN_PROGRESS`, `PAUSED`, `REWORK`; `overdue` — из них просроченные.
+- `averageReactionMinutes` — от создания до принятия, `averageCompletionMinutes` — от начала до завершения; оба по закрытым за 30 дней.
+- `topEquipment` — топ-5 по аварийным нарядам за 30 дней; `topExecutors` — топ-5 по средней оценке 1–5 за 30 дней.
+
+Пример аномалии:
+```json
+{ "id": 1, "type": "REPEATED_FAULT", "title": "Конвейер К-3: повторяющийся шифр M-04",
+  "description": "Одинаковая неисправность зарегистрирована 5 раз (62% ремонтов)",
+  "recommendation": "Проверить первопричину вместо повторной замены узла", "severity": 4,
+  "areaId": 1, "equipmentId": 3, "periodFrom": "…", "periodTo": "…",
+  "evidence": { "faultCode": "M-04", "count": 5, "share": 0.62 }, "createdAt": "…",
+  "area": { "id": 1, "name": "…" }, "equipment": { "id": 3, "name": "Конвейер К-3", "…": "…" } }
+```
+В ответе `POST /anomalies/run` элементы `insights` приходят **без** `area` и `equipment`.
 
 Аномалии `type`: `FREQUENT_FAILURES` (частые отказы), `REPEATED_FAULT` (повторяющийся шифр), `FAILURE_AFTER_PLANNED_MAINTENANCE` (отказы после ППР), `MATERIAL_ANOMALY` (расход материалов).
 
@@ -605,18 +707,52 @@ a.click();
 
 | Запрос | Тело |
 |---|---|
-| `GET /api/admin/users` | — (без `pinHash`) |
-| `POST /api/admin/users` | `{ login (≥3), pin (≥4), fullName, role, specialty?, grade?, brigadeId?, language: "ru" \| "kk" }` |
+| `GET /api/admin/users` | — (без хеша пароля, с `phone` и `brigade`) |
+| `POST /api/admin/users` | `{ phone, password (6–128), fullName (≥3), role, specialty?, grade?, brigadeId?, language?: "ru" \| "kk", login? }` — `login` по умолчанию равен телефону |
+| `PATCH /api/admin/users/:id` | любые из `{ phone, password, fullName, role, specialty, grade, brigadeId (можно null), language }` — правка сотрудника и **сброс пароля** |
 | `PATCH /api/admin/users/:id/shift` | `{ isOnShift: boolean, employeeStatus: "AVAILABLE" \| "BUSY" \| "QUEUED" \| "OFF_SHIFT" }` |
-| `POST`/`PATCH /api/admin/areas` | `{ name }` |
-| `POST`/`PATCH /api/admin/equipment` | `{ name, inventoryNumber, type, criticality 1–5, areaId }` |
+| `POST /api/admin/areas`, `PATCH /api/admin/areas/:id` | `{ name (≥2) }` |
+| `POST /api/admin/equipment` | `{ name, inventoryNumber, type, criticality 1–5, areaId }` — все обязательны |
+| `PATCH /api/admin/equipment/:id` | те же поля, все необязательны |
 | `POST /api/admin/fault-codes` | `{ code, name, category }` |
 | `POST /api/admin/materials` | `{ name, unit }` |
 | `POST /api/admin/brigades` | `{ name }` |
 | `POST /api/admin/normatives` | `{ name, equipmentType?, equipmentId?, faultCodeId?, hours, materials: [{ materialId, quantity }] }` |
 | `DELETE /api/admin/{areas,equipment,fault-codes,materials,brigades,normatives}/:id` | `204`; `409`, если запись используется; `404`, если её нет |
 
-Мониторинг интеграции с 1С (админ, руководитель): `GET /api/integrations/1c/jobs?status=FAILED,DEAD`, `POST /api/integrations/1c/jobs/:id/retry`, `POST /api/integrations/1c/run`.
+- Ответы `POST` — созданная запись со статусом `201`; `PATCH` — обновлённая запись. Пользователь приходит без хеша пароля.
+- Дубль уникального поля (телефон, логин, инвентарный номер, код шифра, название участка/материала/бригады) → `409 Такая запись уже существует`.
+- Удаления пользователей и правки шифров, материалов, бригад и нормативов в API нет — только создание (и удаление для справочников).
+- `PATCH /users/:id/shift` выставляет `employeeStatus` вручную, но сервер пересчитает его при следующем действии с нарядами этого исполнителя. Обычно достаточно менять `isOnShift`, а статус передавать `AVAILABLE` (на смене) или `OFF_SHIFT`.
+- Сотрудники, пришедшие из 1С, получают случайный пароль, а телефон — только если 1С его передала. Чтобы такой сотрудник мог войти, админ задаёт ему `phone` (если нет) и `password` через `PATCH /api/admin/users/:id`. Пользователь без телефона войти не может.
+
+### Панель интеграции с 1С (админ, руководитель)
+
+| Запрос | Ответ |
+|---|---|
+| `GET /api/integrations/1c/jobs?status=FAILED,DEAD&limit=100` | задания обмена, новые первыми; `limit` до 500 |
+| `POST /api/integrations/1c/jobs/:id/retry` | задание снова в `PENDING`, счётчик попыток обнулён |
+| `POST /api/integrations/1c/run` | `{ processed, succeeded, disabled }` — отправить очередь сейчас; `disabled: true`, если интеграция выключена |
+| `GET /api/integrations/1c/mappings?entity=EQUIPMENT` | `[{ id, entity, localId, externalId, createdAt, updatedAt }]` |
+| `POST /api/integrations/1c/push/orders` `{ ids?: number[], since?: ISO }` | `202 { queued, jobIds }` — принудительно выгрузить наряды (до 500) |
+| `GET /api/integrations/orders?since=ISO` | до 5000 нарядов, изменённых после `since`, для сверки |
+
+Задание:
+```json
+{ "id": 51, "direction": "OUTBOUND", "entity": "WORK_ORDER", "eventType": "COMPLETE", "localId": 42,
+  "externalId": null, "idempotencyKey": "naryad:out:42:COMPLETE:…", "payload": { "…": "снимок наряда" },
+  "status": "FAILED", "attempts": 3, "nextAttemptAt": "…", "lastAttemptAt": "…", "completedAt": null,
+  "lastError": "1С HTTP 500: …", "response": null, "createdAt": "…", "updatedAt": "…" }
+```
+| `status` | Показать |
+|---|---|
+| `PENDING` | в очереди |
+| `PROCESSING` | отправляется |
+| `SUCCESS` | доставлено |
+| `FAILED` | ошибка, будет повтор в `nextAttemptAt` (через 2, 4, 8, 16, 32, 60 мин) |
+| `DEAD` | попытки исчерпаны — нужна кнопка «Повторить» (`retry`) |
+
+`direction: "INBOUND"` — входящие пакеты из 1С. Кнопку «Повторить» для них не показывайте: сервер отправляет только исходящие, входящий пакет повторяет 1С с тем же `requestId`.
 
 ---
 
@@ -630,7 +766,7 @@ a.click();
 | Код | Значение | Реакция клиента |
 |---|---|---|
 | 400 | неверные данные; `details` — JSON-строка с ошибками по полям (`path`, `message`) | подсветить поля |
-| 401 | нет или истёк токен; неверный ПИН; файл без подписи | на экран входа (кроме экрана входа и картинок) |
+| 401 | нет или истёк токен; неверный телефон или пароль; файл без подписи | на экран входа (кроме экрана входа и картинок) |
 | 403 | роль не позволяет; чужой наряд | скрыть действие |
 | 404 | не найдено | убрать из списка |
 | 409 | статус уже изменился; запись используется; дубликат | обновить данные и показать `error` |
@@ -673,7 +809,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown;
 declare function onUnauthorized(): void; // ваш переход на экран входа
 
 // Примеры
-export const login = (login: string, pin: string) => api<LoginResponse>("/api/auth/login", { method: "POST", json: { login, pin } });
+export const login = (phone: string, password: string) => api<LoginResponse>("/api/auth/login", { method: "POST", json: { phone, password } });
 export const myQueue = () => api<WorkOrder[]>("/api/work-orders?compact=1&status=ISSUED,QUEUED,ACCEPTED,IN_PROGRESS,PAUSED,REWORK");
 export const act = (id: number, body: ActionRequest) =>
   api<ActionResponse>(`/api/work-orders/${id}/action`, { method: "POST", json: body, timeoutMs: body.action === "COMPLETE" ? 250_000 : 30_000 });

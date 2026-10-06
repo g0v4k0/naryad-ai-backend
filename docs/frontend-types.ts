@@ -20,10 +20,14 @@ export type Language = "ru" | "kk";
 export interface ApiErrorBody { error: string; details?: string }
 
 // ---------- auth ----------
-export interface LoginRequest { login: string; pin: string }
-export interface LoginResponse { token: string; user: { id: number; fullName: string; role: Role; employeeStatus: EmployeeStatus } }
+/** `phone` in any common notation ("8 701 234 56 78", "+7 (701) 234-56-78"); the server normalizes it to +7XXXXXXXXXX. */
+export interface LoginRequest { phone: string; password: string }
+export interface LoginResponse { token: string; user: { id: number; fullName: string; phone: string; role: Role; employeeStatus: EmployeeStatus } }
+/** POST /api/auth/change-password → 204; wrong currentPassword → 400 (not 401). */
+export interface ChangePasswordRequest { currentPassword: string; newPassword: string }
 export interface Me {
-  id: number; login: string; fullName: string; role: Role; specialty: string | null; grade: number | null;
+  /** `login` is an internal/1C identifier, not used to sign in. */
+  id: number; login: string; phone: string | null; fullName: string; role: Role; specialty: string | null; grade: number | null;
   brigadeId: number | null; employeeStatus: EmployeeStatus; isOnShift: boolean; language: Language;
 }
 
@@ -148,6 +152,7 @@ export interface PushData { type: NotificationType; workOrderId?: string; priori
 
 // ---------- equipment ----------
 export interface EquipmentWithArea extends Equipment { area: Area }
+/** GET /api/equipment/:id/history returns `EquipmentHistory | null` (null for an unknown id). */
 export interface EquipmentHistory extends EquipmentWithArea {
   orders: Array<WorkOrderBase & {
     faultCode: FaultCode | null; aiAssessment: AiAssessment | null;
@@ -176,7 +181,7 @@ export interface AssistantMessage { id: number; userId: number; role: "user" | "
 export interface Dashboard {
   active: number; overdue: number; equipmentInDowntime: number;
   averageReactionMinutes: number; averageCompletionMinutes: number;
-  topEquipment: Array<{ equipmentId: number; name: string; _count: number }>;
+  topEquipment: Array<{ equipmentId: number; name?: string; _count: number }>;
   topExecutors: Array<{ id: number; fullName: string; score: number; closed: number }>;
 }
 export interface FailureForecastItem { equipmentId: number; equipment: string; recentFailures: number; previousFailures: number; growth: number; probability: number }
@@ -186,7 +191,8 @@ export interface Anomaly {
   areaId: number | null; equipmentId: number | null; periodFrom: ISODate; periodTo: ISODate;
   evidence: Record<string, unknown>; createdAt: ISODate; area: Area | null; equipment: Equipment | null;
 }
-export interface AnomalyRunResponse { insights: Anomaly[]; ai: { summary: string; recommendations: string[] } }
+/** Fresh insights come without the area/equipment relations. */
+export interface AnomalyRunResponse { insights: Array<Omit<Anomaly, "area" | "equipment">>; ai: { summary: string; recommendations: string[] } }
 export interface ShiftReport { from: ISODate; issued: number; completed: number; closed: number; overdue: number; aiSummary: string }
 export interface ExecutorRating {
   id: number; fullName: string; score: number; quality: number; onTimeRate: number; reworkRate: number;
@@ -194,14 +200,57 @@ export interface ExecutorRating {
 }
 export interface BrigadeRating { id: number; name: string; closed: number; quality: number; onTimeRate: number; score: number }
 export interface MaterialReportItem { materialId: number; _sum: { quantity: DecimalString | null }; _count: number; material: Material }
+export interface DowntimeReportItem {
+  id: number; equipmentId: number; workOrderId: number; startedAt: ISODate; endedAt: ISODate | null; reason: string | null;
+  /** Up to now for open downtime. */
+  minutes: number;
+  equipment: EquipmentWithArea;
+  workOrder: Omit<WorkOrderBase, "area" | "equipment" | "assignee" | "faultCode"> & { faultCode: FaultCode | null };
+}
+/** GET /api/reports/work-order/:id; null when the order does not exist. */
+export type WorkOrderPrintCard = (Omit<WorkOrderBase, "assignee" | "faultCode"> & {
+  creator: { fullName: string }; assignee: { fullName: string };
+  events: Omit<WorkOrderEvent, "actor">[]; photos: Photo[]; materialUsages: MaterialUsage[]; aiAssessment: AiAssessment | null;
+}) | null;
+/** shift, export.xlsx, export.pdf accept all fields; ratings, brigade-ratings, downtime only `from`; materials `from` and `areaId`. */
 export interface ReportFilters { from?: ISODate; to?: ISODate; areaId?: number; equipmentId?: number; executorId?: number; brigadeId?: number }
 
 // ---------- admin ----------
 export interface CreateUserRequest {
-  login: string; pin: string; fullName: string; role: Role;
+  phone: string; /** 6–128 chars */ password: string; fullName: string; role: Role;
   specialty?: string; grade?: number; brigadeId?: number; language?: Language;
+  /** Defaults to the normalized phone. */
+  login?: string;
 }
+/** PATCH /api/admin/users/:id — edit an employee or reset the password. */
+export type UpdateUserRequest = Partial<Omit<CreateUserRequest, "login" | "brigadeId">> & { brigadeId?: number | null };
 export interface ShiftUpdateRequest { isOnShift: boolean; employeeStatus: EmployeeStatus }
+export interface AdminUser extends Me { brigade: { id: number; name: string } | null }
+export interface AreaRequest { name: string }
+export interface CreateEquipmentRequest { name: string; inventoryNumber: string; type: string; criticality: 1 | 2 | 3 | 4 | 5; areaId: number }
+export type UpdateEquipmentRequest = Partial<CreateEquipmentRequest>;
+export interface CreateFaultCodeRequest { code: string; name: string; category: string }
+export interface CreateMaterialRequest { name: string; unit: string }
+export interface CreateBrigadeRequest { name: string }
+export interface CreateNormativeRequest {
+  name: string; equipmentType?: string; equipmentId?: number; faultCodeId?: number; hours: number;
+  materials?: Array<{ materialId: number; quantity: number }>;
+}
+export type AdminResource = "areas" | "equipment" | "fault-codes" | "materials" | "brigades" | "normatives";
+
+// ---------- 1C integration panel (ADMIN, MANAGER) ----------
+export type IntegrationEntity = "AREA" | "EQUIPMENT" | "BRIGADE" | "EMPLOYEE" | "FAULT_CODE" | "MATERIAL" | "NORMATIVE" | "WORK_ORDER";
+export type IntegrationStatus = "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED" | "DEAD";
+export interface IntegrationJob {
+  id: number; direction: "INBOUND" | "OUTBOUND"; entity: IntegrationEntity; eventType: string;
+  localId: number | null; externalId: string | null; idempotencyKey: string; payload: unknown;
+  status: IntegrationStatus; attempts: number; nextAttemptAt: ISODate; lastAttemptAt: ISODate | null;
+  completedAt: ISODate | null; lastError: string | null; response: unknown; createdAt: ISODate; updatedAt: ISODate;
+}
+export interface IntegrationMapping { id: number; entity: IntegrationEntity; localId: number; externalId: string; createdAt: ISODate; updatedAt: ISODate }
+export interface OneCRunResponse { processed: number; succeeded?: number; disabled: boolean }
+export interface PushOrdersRequest { ids?: number[]; since?: ISODate }
+export interface PushOrdersResponse { queued: number; jobIds: number[] }
 
 // ---------- Socket.IO ----------
 export interface ServerToClientEvents {
