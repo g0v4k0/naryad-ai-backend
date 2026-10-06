@@ -6,4 +6,3 @@ uploads/*
 coverage
 work
 .DS_Store
-*.local.txt
