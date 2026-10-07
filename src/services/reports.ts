@@ -102,8 +102,8 @@ export async function buildShiftReport(filter: ReportFilter) {
     + `Простой оборудования ${report.downtime.minutes} мин, сейчас в простое ${report.downtime.equipmentInDowntimeNow}. `
     + `На смене ${report.workload.executorsOnShift} исполнителей, заняты ${report.workload.busy}.`;
   const facts = {
-    выдано: report.issued, выполнено: report.completed, закрыто: report.closed, просрочено: report.overdue, отклонено: report.rejected, отменено: report.cancelled, в_работе: report.inProgress,
-    исполнителей_на_смене: report.workload.executorsOnShift, заняты: report.workload.busy, свободны: report.workload.free,
+    выдано: report.issued, выполнено: report.completed, закрыто: report.closed, просрочено: report.overdue, отклонено: report.rejected, отменено: report.cancelled, нарядов_в_работе: report.inProgress,
+    исполнителей_на_смене: report.workload.executorsOnShift, исполнителей_занято: report.workload.busy, исполнителей_свободно: report.workload.free,
     простой_минут: report.downtime.minutes, нарядов_с_простоем: report.downtime.orders, сейчас_в_простое_единиц: report.downtime.equipmentInDowntimeNow,
     самые_загруженные: load.filter((x) => x.assigned).sort((a, b) => b.assigned - a.assigned).slice(0, 3).map((x) => `${x.fullName}: выдано ${x.assigned}, выполнено ${x.completed}`)
   };
