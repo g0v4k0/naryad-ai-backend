@@ -1,6 +1,6 @@
 import { Prisma, Role } from "@prisma/client";
 import { z } from "zod";
-import { shortName, STATUS_LABELS } from "../lib/labels.js";
+import { STATUS_LABELS } from "../lib/labels.js";
 import { prisma } from "../lib/prisma.js";
 import { formatLocal } from "../lib/time.js";
 import { findRepeatFailures } from "./analytics.js";
@@ -108,7 +108,8 @@ export async function buildShiftReport(filter: ReportFilter) {
     есть_отклонённые_наряды: report.rejected > 0,
     оборудование_сейчас_в_простое: report.downtime.equipmentInDowntimeNow > 0,
     есть_свободные_исполнители: report.workload.free > 0,
-    исполнители_с_невыполненными_нарядами: load.filter((x) => x.assigned > x.completed).map((x) => shortName(x.fullName))
+    // Flags only: given names, the model called executors with unfinished orders "free".
+    есть_исполнители_с_невыполненными_нарядами: load.some((x) => x.assigned > x.completed)
   };
   const { text: note, fromModel } = await phrase({
     task: "Ты помощник мастера смены горно-обогатительного предприятия. Одним предложением скажи, на что мастеру обратить внимание в эту смену, по признакам из FACTS. Не используй цифры.",

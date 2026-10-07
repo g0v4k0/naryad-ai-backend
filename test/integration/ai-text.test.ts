@@ -76,6 +76,14 @@ describe("ассистент: ответы по фактам", () => {
     expect(facts).toMatchObject({ нарядов: 55, аварийных: 44, доля_аварийных_процентов: 80 });
   });
 
+  it("аномалии — точный текст выводов с рекомендациями", async () => {
+    for (let i = 0; i < 8; i++) await insertOrder(base, { status: "CLOSED", equipmentId: base.conveyor.id, faultCodeId: base.fault.id, createdAt: new Date(Date.now() - (i + 1) * 86_400_000) });
+    scripted({ intent: "ANOMALIES" }, "выдумка");
+    const res = await ask("Покажи аномалии");
+    expect(res.body.fromModel).toBe(false);
+    expect(res.body.answer).toBe("За квартал найдено: 1. 1) Конвейер К-3: повторяющийся шифр М-01. Одинаковая неисправность зарегистрирована 8 раз (100% ремонтов). Рекомендация: проверить первопричину вместо повторной замены узла.");
+  });
+
   it("неизвестное оборудование и пустые данные — честный ответ", async () => {
     mocks.ollama.handler = () => ({ status: 503 });
     expect((await ask("История дробилки Х-999")).body.answer).toBe("Оборудование не найдено. Уточните название или номер, например «К-3».");
@@ -112,9 +120,9 @@ describe("сводки ИИ", () => {
     expect(await shift()).toBe(figures);
     mocks.ollama.handler = () => ollamaReply({ note: "6 из 7 нарядов не выполнены" });
     expect(await shift()).toBe(figures);
-    mocks.ollama.handler = () => ollamaReply({ note: "У Слесаря 1. остались невыполненные наряды, а свободных исполнителей можно подключить." });
-    expect(await shift()).toBe(`${figures} Обратите внимание: у Слесаря 1. остались невыполненные наряды, а свободных исполнителей можно подключить.`);
+    mocks.ollama.handler = () => ollamaReply({ note: "Остались невыполненные наряды, а свободных исполнителей можно подключить." });
+    expect(await shift()).toBe(`${figures} Обратите внимание: остались невыполненные наряды, а свободных исполнителей можно подключить.`);
     const facts = JSON.parse(mocks.ollama.calls.at(-1)!.body.messages[1].content).FACTS;
-    expect(facts).toEqual({ есть_просроченные_наряды: false, есть_отклонённые_наряды: false, оборудование_сейчас_в_простое: false, есть_свободные_исполнители: true, исполнители_с_невыполненными_нарядами: ["Слесарь 1."] });
+    expect(facts).toEqual({ есть_просроченные_наряды: false, есть_отклонённые_наряды: false, оборудование_сейчас_в_простое: false, есть_свободные_исполнители: true, есть_исполнители_с_невыполненными_нарядами: true });
   });
 });

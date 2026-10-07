@@ -138,7 +138,8 @@ async function factsFor(intent: Intent, data: unknown, area: { id: number; name:
   if (intent.intent === "ANOMALIES") {
     const insights = (data as Array<{ title: string; description: string; recommendation: string; severity: number }>).slice(0, 4);
     const items = insights.map((x) => ({ вывод: x.title, факты: x.description, рекомендация: x.recommendation }));
-    const ru = insights.map((x, i) => `${i + 1}) ${x.title}: ${x.description}. ${x.recommendation}`);
+    const sentence = (text: string) => /[.!?]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`;
+    const ru = insights.map((x, i) => `${i + 1}) ${sentence(x.title)} ${sentence(x.description.charAt(0).toUpperCase() + x.description.slice(1))} Рекомендация: ${sentence(x.recommendation.charAt(0).toLowerCase() + x.recommendation.slice(1))}`);
     return {
       facts: { участок: area?.name ?? "все участки", период: periodLabel(days, "ru"), найдено: (data as unknown[]).length, выводы: items },
       hasData: insights.length > 0,
