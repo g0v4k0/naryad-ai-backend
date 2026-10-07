@@ -58,7 +58,7 @@ export async function suggestFaultAndNormative(description: string, equipmentId:
   ]);
   // How the plant actually closed similar problems (RAG memory); only codes that still exist.
   const similarOrders = similar.filter((x) => codes.some((c) => c.id === x.faultCodeId)).map((x) => ({
-    problem: x.problem, equipmentType: x.equipmentType, faultCodeId: x.faultCodeId, normativeId: x.normativeId, actualHours: x.actualHours, similarity: x.similarity
+    problem: x.problem, equipmentType: x.equipmentType, faultCodeId: x.faultCodeId, normativeId: x.normativeId, actualHours: x.actualHours, times: x.times, similarity: x.similarity
   }));
   const basedOn = similarOrders.length;
   try {
@@ -82,7 +82,7 @@ export async function suggestFaultAndNormative(description: string, equipmentId:
     if (basedOn) {
       // Without the LLM: similarity-weighted vote of the nearest closed orders.
       const votes = new Map<number, number>();
-      for (const x of similarOrders) votes.set(x.faultCodeId!, (votes.get(x.faultCodeId!) ?? 0) + x.similarity);
+      for (const x of similarOrders) votes.set(x.faultCodeId!, (votes.get(x.faultCodeId!) ?? 0) + x.similarity * x.times);
       const faultCodeId = [...votes].sort((a, b) => b[1] - a[1])[0][0];
       const normative = norms.find((x) => x.faultCodeId === faultCodeId) ?? norms.find((x) => x.id === similarOrders.find((o) => o.faultCodeId === faultCodeId)?.normativeId);
       return { faultCodeId, normativeId: normative?.id ?? null, estimatedHours: Number(normative?.hours ?? norms[0]?.hours ?? 2), explanation: "По похожим закрытым нарядам предприятия", basedOn };

@@ -35,7 +35,7 @@ ACCEPTED — конкретные действия устраняют пробл
 
 // Appended only when the RAG memory found similar decisions, so the base prompt stays the measured one.
 export const PRECEDENTS_PROMPT = `
-precedents — решения мастеров этого предприятия по похожим отчётам (similarity 0..1).
+precedents — решения мастеров этого предприятия по похожим отчётам (similarity 0..1, times — сколько раз так решали).
 Требования предприятия — только masterComment у прецедентов «ВОЗВРАЩЕНО НА ДОРАБОТКУ»: если в текущем отчёте нет того же (замер, проверка, испытание, марка материала), — REWORK_REQUIRED и назови это требование; если есть — этот прецедент не применяй.
 Прецеденты «ПРИНЯТО» лишь показывают допустимый отчёт и новых требований не создают: не возвращай отчёт только за то, что он короче или проще принятого.
 Прецеденты не отменяют критерии доработки выше.`;
@@ -88,7 +88,7 @@ export async function reviewWorkOrder(workOrderId: number) {
         materialWarnings,
         missing,
         ...(precedents.length ? {
-          precedents: precedents.map((p) => ({ problem: p.problem, report: p.report, masterDecision: p.accepted ? "ПРИНЯТО" : "ВОЗВРАЩЕНО НА ДОРАБОТКУ", masterComment: p.masterComment, similarity: p.similarity }))
+          precedents: precedents.map((p) => ({ problem: p.problem, report: p.report, masterDecision: p.accepted ? "ПРИНЯТО" : "ВОЗВРАЩЕНО НА ДОРАБОТКУ", masterComment: p.masterComment, times: p.times, similarity: p.similarity }))
         } : {})
       })
     ));

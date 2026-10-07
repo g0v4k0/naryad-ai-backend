@@ -258,10 +258,10 @@ if os.path.exists(os.path.join(R, "r7-rag-review.json")):
     xs = range(len(stages))
     labels = [s_.replace(" решения мастера на правило", "\nрешения на правило").replace("история завода", "история\nзавода").replace("без памяти", "без\nпамяти") for s_ in stages]
     fig, ax = plt.subplots(figsize=(8, 4.2))
-    for key, name, c in [("plantAccuracy", "Заводские правила: верные вердикты", S1), ("plantBadCaught", "Заводские правила: найдено плохих", S2), ("controlAccuracy", "Общие критерии (R1, контроль): верные", S3)]:
+    for key, name, c, dy in [("plantAccuracy", "Заводские правила: верные вердикты", S1, 3), ("plantBadCaught", "Заводские правила: найдено плохих", S2, -8), ("controlAccuracy", "Общие критерии (R1, контроль): верные", S3, 8)]:
         ys = [x[key] for x in r7["stages"]]
         ax.plot(xs, ys, marker="o", color=c, linewidth=2, label=name)
-        for x, y in zip(xs, ys): ax.text(x, y + 2.5, f"{y:.0f}%", ha="center", fontsize=8, color=c)
+        for x, y in zip(xs, ys): ax.text(x, y + dy, f"{y:.0f}%", ha="center", fontsize=8, color=c)
     ax.set_xticks(list(xs), labels, fontsize=8); ax.set_ylim(0, 110); ax.set_ylabel("%")
     ax.set_title("Самообучение AI-проверки через RAG-память")
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, fontsize=8)
@@ -273,6 +273,26 @@ if os.path.exists(os.path.join(R, "r7-rag-review.json")):
     ax.set_title("Верные вердикты по заводским правилам")
     ax.set_xlabel("% верных вердиктов")
     save(fig, "rag-by-rule.png")
+    # Recall versions: v1 plain top-k, v2 + templated copies collapsed, current (v3) + a master's return keeps a slot.
+    versions = [(n, f) for n, f in [("v1: top-k", "r7-rag-review-v1.json"), ("v2: + без дублей", "r7-rag-review-v2.json"), ("v3: + возврат мастера в top-k", "r7-rag-review.json")] if os.path.exists(os.path.join(R, f))]
+    if len(versions) > 1:
+        r7["versions"] = {}
+        fig, axes = plt.subplots(1, 2, figsize=(9, 3.8), sharey=True)
+        for (name, f), c in zip(versions, [AXIS, S2, S1]):
+            rows = load(f)
+            plant = lambda s_, ok: [r for r in rows if r["stage"] == s_ and r["group"] != "R1-контроль" and r["ok"] == ok]
+            bad, good = [pct(plant(s_, False)) for s_ in stages], [pct(plant(s_, True)) for s_ in stages]
+            r7["versions"][name] = {"plantBadCaught": bad, "plantGoodAccepted": good}
+            for ax, ys in zip(axes, (bad, good)):
+                ax.plot(xs, ys, marker="o", color=c, linewidth=2, label=name)
+                ax.text(xs[-1] + 0.12, ys[-1], f"{ys[-1]:.0f}%", va="center", fontsize=8, color=c)
+        for ax, title in zip(axes, ("Найдено плохих отчётов", "Хорошие приняты")):
+            ax.set_xticks(list(xs), [l.split("\n")[0] if l[0] == "+" else l for l in labels], fontsize=8); ax.set_ylim(0, 105); ax.set_xlim(-0.3, len(stages) - 0.4)
+            ax.text(0, 1.02, title, transform=ax.transAxes, fontsize=10, color=INK2)
+        axes[0].set_ylabel("% (заводские правила)"); axes[1].set_xlabel("+N — решений мастера на каждое правило", fontsize=8)
+        axes[0].set_title("Поиск прецедентов: три версии")
+        axes[0].legend(loc="upper center", bbox_to_anchor=(1.05, -0.22), ncol=3, fontsize=8)
+        save(fig, "rag-versions.png")
 if os.path.exists(os.path.join(R, "r7-rag-fault.json")):
     fr = load("r7-rag-fault.json")
     conds = list(dict.fromkeys(r["condition"] for r in fr))

@@ -10,7 +10,8 @@ import { prisma } from "../lib/prisma.js";
  * produces thousands of closures a year, where a brute-force dot product takes milliseconds.
  */
 
-export type Precedent = Omit<KnowledgeCase, "embedding"> & { similarity: number };
+/** `times` — how many stored cases repeat this one (same text, same decision): templated reports are common. */
+export type Precedent = Omit<KnowledgeCase, "embedding"> & { similarity: number; times: number };
 type Entry = { vector: Float32Array; row: Omit<KnowledgeCase, "embedding"> };
 
 export const ragEnabled = () => Boolean(config.OLLAMA_EMBED_MODEL);
@@ -63,15 +64,29 @@ export async function recall(kind: KnowledgeKind, text: string, options: { exclu
     const memory = (await entries(kind)).filter((x) => x.row.workOrderId !== options.exclude);
     if (!memory.length) return [];
     const [query] = await embed([text]);
-    return memory
+    const ranked = memory
       .map(({ vector, row }) => {
         let dot = 0;
         for (let i = 0; i < vector.length; i++) dot += vector[i] * query[i];
-        return { ...row, similarity: Math.round(dot * 1000) / 1000 };
+        return { ...row, similarity: Math.round(dot * 1000) / 1000, times: 1 };
       })
       .filter((x) => x.similarity >= config.RAG_MIN_SIMILARITY)
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, options.k ?? config.RAG_TOP_K);
+      .sort((a, b) => b.similarity - a.similarity || b.updatedAt.getTime() - a.updatedAt.getTime());
+    // Copies of one templated report would otherwise fill every slot and hide the master's other decisions.
+    const distinct = new Map<string, Precedent>();
+    for (const x of ranked) {
+      const key = `${x.textHash}:${x.accepted}:${x.faultCodeId}`;
+      const seen = distinct.get(key);
+      if (seen) seen.times++;
+      else distinct.set(key, x);
+    }
+    const all = [...distinct.values()];
+    const top = all.slice(0, options.k ?? config.RAG_TOP_K);
+    // Accepted history reports are plentiful and outrank a master's return under a new rule, while only a
+    // return carries the plant's requirement: keep the best one in the last slot instead of the weakest acceptance.
+    const rework = kind === "REVIEW" && top.length && !top.some((x) => !x.accepted) ? all.find((x) => !x.accepted) : undefined;
+    if (rework) top[top.length - 1] = rework;
+    return top;
   } catch (error) {
     console.error("RAG recall:", error);
     return [];

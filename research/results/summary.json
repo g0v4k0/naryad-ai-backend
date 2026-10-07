@@ -5,10 +5,10 @@
   "failed": 0,
   "files": 13,
   "coverage": {
-   "lines": 97.98,
-   "statements": 97.98,
-   "functions": 97.22,
-   "branches": 84.38
+   "lines": 98.57,
+   "statements": 98.57,
+   "functions": 98.76,
+   "branches": 88.6
   }
  },
  "r1": {
@@ -1059,6 +1059,183 @@
      "closed": 12
     }
    ]
+  }
+ },
+ "r7": {
+  "stages": [
+   {
+    "stage": "без памяти",
+    "memory": 0,
+    "plantAccuracy": 55.0,
+    "plantBadCaught": 10.0,
+    "plantGoodAccepted": 100.0,
+    "controlAccuracy": 100.0,
+    "controlBadCaught": 100.0,
+    "controlGoodAccepted": 100.0,
+    "conflictReworked": 0.0,
+    "withPrecedents": 0.0,
+    "topIsSameRule": null,
+    "needsMasterReview": 0.0,
+    "msMedian": 4169.5,
+    "byRule": {
+     "P1-вибрация": 50.0,
+     "P2-опрессовка": 50.0,
+     "P3-контроль шва": 75.0,
+     "P4-мегаомметр": 50.0,
+     "P5-масло": 50.0
+    }
+   },
+   {
+    "stage": "история завода",
+    "memory": 500,
+    "plantAccuracy": 65.0,
+    "plantBadCaught": 40.0,
+    "plantGoodAccepted": 90.0,
+    "controlAccuracy": 100.0,
+    "controlBadCaught": 100.0,
+    "controlGoodAccepted": 100.0,
+    "conflictReworked": 0.0,
+    "withPrecedents": 100.0,
+    "topIsSameRule": 0.0,
+    "needsMasterReview": 0.0,
+    "msMedian": 7631.0,
+    "byRule": {
+     "P1-вибрация": 87.5,
+     "P2-опрессовка": 62.5,
+     "P3-контроль шва": 75.0,
+     "P4-мегаомметр": 62.5,
+     "P5-масло": 37.5
+    }
+   },
+   {
+    "stage": "+1 решения мастера на правило",
+    "memory": 505,
+    "plantAccuracy": 75.0,
+    "plantBadCaught": 70.0,
+    "plantGoodAccepted": 80.0,
+    "controlAccuracy": 100.0,
+    "controlBadCaught": 100.0,
+    "controlGoodAccepted": 100.0,
+    "conflictReworked": 75.0,
+    "withPrecedents": 100.0,
+    "topIsSameRule": 20.0,
+    "needsMasterReview": 0.0,
+    "msMedian": 8527.0,
+    "byRule": {
+     "P1-вибрация": 75.0,
+     "P2-опрессовка": 87.5,
+     "P3-контроль шва": 87.5,
+     "P4-мегаомметр": 62.5,
+     "P5-масло": 62.5
+    }
+   },
+   {
+    "stage": "+2 решения мастера на правило",
+    "memory": 510,
+    "plantAccuracy": 67.5,
+    "plantBadCaught": 60.0,
+    "plantGoodAccepted": 75.0,
+    "controlAccuracy": 100.0,
+    "controlBadCaught": 100.0,
+    "controlGoodAccepted": 100.0,
+    "conflictReworked": 100.0,
+    "withPrecedents": 100.0,
+    "topIsSameRule": 20.0,
+    "needsMasterReview": 0.0,
+    "msMedian": 8330.0,
+    "byRule": {
+     "P1-вибрация": 75.0,
+     "P2-опрессовка": 62.5,
+     "P3-контроль шва": 87.5,
+     "P4-мегаомметр": 50.0,
+     "P5-масло": 62.5
+    }
+   },
+   {
+    "stage": "+4 решения мастера на правило",
+    "memory": 520,
+    "plantAccuracy": 92.5,
+    "plantBadCaught": 90.0,
+    "plantGoodAccepted": 95.0,
+    "controlAccuracy": 95.0,
+    "controlBadCaught": 100.0,
+    "controlGoodAccepted": 87.5,
+    "conflictReworked": 50.0,
+    "withPrecedents": 100.0,
+    "topIsSameRule": 30.0,
+    "needsMasterReview": 0.0,
+    "msMedian": 8320.5,
+    "byRule": {
+     "P1-вибрация": 75.0,
+     "P2-опрессовка": 100.0,
+     "P3-контроль шва": 100.0,
+     "P4-мегаомметр": 100.0,
+     "P5-масло": 87.5
+    }
+   }
+  ],
+  "versions": {
+   "v1: top-k": {
+    "plantBadCaught": [
+     10.0,
+     35.0,
+     60.0,
+     65.0,
+     60.0
+    ],
+    "plantGoodAccepted": [
+     95.0,
+     80.0,
+     80.0,
+     100.0,
+     90.0
+    ]
+   },
+   "v2: + без дублей": {
+    "plantBadCaught": [
+     10.0,
+     45.0,
+     65.0,
+     60.0,
+     65.0
+    ],
+    "plantGoodAccepted": [
+     100.0,
+     95.0,
+     85.0,
+     90.0,
+     90.0
+    ]
+   },
+   "v3: + возврат мастера в top-k": {
+    "plantBadCaught": [
+     10.0,
+     40.0,
+     70.0,
+     60.0,
+     90.0
+    ],
+    "plantGoodAccepted": [
+     100.0,
+     90.0,
+     80.0,
+     75.0,
+     95.0
+    ]
+   }
+  },
+  "fault": {
+   "cases": 28,
+   "accuracy": {
+    "LLM без памяти": 100.0,
+    "LLM + память": 100.0,
+    "только память (LLM недоступна)": 96.4
+   },
+   "msMedian": {
+    "LLM без памяти": 3750.0,
+    "LLM + память": 7990.5,
+    "только память (LLM недоступна)": 308.0
+   }
   }
  }
 }

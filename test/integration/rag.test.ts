@@ -187,6 +187,28 @@ describe("RAG-память: прецеденты в AI-проверке", () => 
     expect(await recall("REVIEW", "совсем другой текст")).toHaveLength(0);
   });
 
+  it("копии шаблонного отчёта схлопываются в один прецедент с числом повторов", async () => {
+    ollama();
+    for (let i = 0; i < 5; i++) await learnFromMasterDecision((await insertOrder(base, { status: "CLOSED", description: BEARING, completionText: NO_VIBRATION })).id);
+    await teachRework();
+    const found = await recall("REVIEW", `Оборудование: Насос\nПроблема: ${BEARING}\nОтчёт: ${NO_VIBRATION}`);
+    expect(found.map((x) => [x.accepted, x.times])).toEqual(expect.arrayContaining([[true, 5], [false, 1]]));
+    expect(found).toHaveLength(2);
+  });
+
+  it("возврат мастера не вытесняется более похожими принятыми отчётами", async () => {
+    ollama();
+    for (let i = 0; i < 4; i++) await learnFromMasterDecision((await insertOrder(base, { status: "CLOSED", description: BEARING, completionText: `${NO_VIBRATION} ${i}` })).id);
+    const returned = await insertOrder(base, { status: "REWORK", description: BEARING, completionText: "Заменил подшипник 6205 насоса, шум пропал, узел собран" });
+    await learnFromMasterDecision(returned.id);
+    const query = `Оборудование: Насос\nПроблема: ${BEARING}\nОтчёт: ${NO_VIBRATION} 0`;
+    config.RAG_MIN_SIMILARITY = 0;
+    const found = await recall("REVIEW", query);
+    expect(found).toHaveLength(4);
+    expect(found.map((x) => x.accepted)).toEqual([true, true, true, false]);
+    expect(found[3].workOrderId).toBe(returned.id);
+  });
+
   it("новое решение мастера сразу видно следующему поиску (кеш обновляется)", async () => {
     ollama();
     const query = `Оборудование: Насос\nПроблема: ${BEARING}\nОтчёт: ${NO_VIBRATION}`;
