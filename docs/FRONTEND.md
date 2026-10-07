@@ -133,9 +133,10 @@
 | `auth/me`, `notifications`, `devices`, `uploads`, `ai/transcribe` | ✅ | ✅ | ✅ | ✅ |
 | `references/*`, `equipment/*` | ✅ | ✅ | ✅ | ✅ |
 | `assistant/*`, `recommendations/*` | ✅ | ✅ | ✅ | ✅ |
-| `GET work-orders`, `GET work-orders/:id` | свои | ✅ | ✅ | ✅ |
+| `GET work-orders`, `GET work-orders/board`, `GET work-orders/:id`, `GET work-orders/:id/report`, `POST work-orders/:id/comment` | свои | ✅ | ✅ | ✅ |
 | `POST work-orders`, `PATCH work-orders/:id`, `reassign` | — | ✅ | — | ✅ |
-| `analytics/*`, `reports/*` | — | ✅ | ✅ | ✅ |
+| `GET reports/my-rating` | ✅ | ✅ | ✅ | ✅ |
+| `analytics/*`, остальные `reports/*` | — | ✅ | ✅ | ✅ |
 | `integrations/*` (панель 1С) | — | — | ✅ | ✅ |
 | `admin/*` | — | — | — | ✅ |
 
@@ -145,11 +146,14 @@
 |---|---|---|
 | Вход | все | `POST /api/auth/login` → `GET /api/auth/me` → `POST /api/devices` |
 | Очередь исполнителя | `EXECUTOR` | `GET /api/work-orders?compact=1&status=ISSUED,QUEUED,ACCEPTED,IN_PROGRESS,PAUSED,REWORK`; Socket.IO `work-order:changed` |
-| Карточка наряда | все | `GET /api/work-orders/:id`; кнопки — `POST /api/work-orders/:id/action` |
+| Карточка наряда | все | `GET /api/work-orders/:id`; кнопки — `POST /api/work-orders/:id/action`; комментарий — `POST /api/work-orders/:id/comment` |
+| Моя оценка по наряду | `EXECUTOR` | `GET /api/work-orders/:id/report` |
+| Мой рейтинг | `EXECUTOR` | `GET /api/reports/my-rating?period=month` |
 | Завершение работ | `EXECUTOR` | `GET /api/references/fault-codes`, `/materials`, `/normatives?equipmentId=`; `POST /api/uploads`; `POST /api/ai/transcribe`; `action: COMPLETE` |
-| Список нарядов мастера | `MASTER` | `GET /api/work-orders?compact=1&status=…&areaId=…` с `limit`/`offset` |
-| Создание наряда | `MASTER` | `/api/references/areas`, `/equipment?areaId=`, `/executors`, `/normatives?equipmentId=`; `GET /api/recommendations/executors`; `POST /api/recommendations/work`; `POST /api/uploads`; `POST /api/work-orders` |
-| Проверка закрытия | `MASTER` | `GET /api/work-orders?status=AI_REVIEW`; `action: CLOSE` / `SEND_TO_REWORK` |
+| Панель смены (канбан + счётчики) | `MASTER` | `GET /api/work-orders/board?areaId=…`; `GET /api/references/executors?onShift=1`; Socket.IO `work-order:changed` |
+| Список нарядов мастера | `MASTER` | `GET /api/work-orders?compact=1&status=…&areaId=…&equipmentId=…&priority=…&overdue=1` с `limit`/`offset` |
+| Создание наряда | `MASTER` | `/api/references/areas`, `/equipment?areaId=`, `/executors`, `/brigades`, `/normatives?equipmentId=`; `GET /api/recommendations/executors`; `POST /api/recommendations/work`; `POST /api/uploads`; `POST /api/work-orders` |
+| Проверка закрытия | `MASTER` | `GET /api/work-orders?status=AI_REVIEW`; `GET /api/work-orders/:id/report`; `action: CLOSE` / `SEND_TO_REWORK` |
 | Сканер QR | все | `GET /api/equipment/qr/:token` → `GET /api/equipment/:id/history` |
 | Уведомления | все | `GET /api/notifications`, `PATCH /api/notifications/:id/read`; Socket.IO `notification:new` |
 | AI-помощник | `MASTER` | `POST /api/assistant/chat`, `GET /api/assistant/history` |
@@ -186,14 +190,18 @@
 | Параметр | Описание |
 |---|---|
 | `status` | один или несколько через запятую: `?status=ISSUED,QUEUED,ACCEPTED` |
-| `areaId`, `assigneeId` | фильтры (исполнителю `assigneeId` не нужен — сервер и так отдаёт только его наряды) |
+| `priority` | один или несколько через запятую: `?priority=EMERGENCY,HIGH` |
+| `type` | `EMERGENCY` или `PLANNED` |
+| `overdue` | `1` — только просроченные незакрытые |
+| `areaId`, `equipmentId`, `assigneeId`, `brigadeId` | фильтры (исполнителю `assigneeId` не нужен — сервер и так отдаёт только его наряды; `brigadeId` — наряды, выданные бригаде, и наряды её членов) |
 | `limit` | 1–500, по умолчанию 200 |
 | `offset` | смещение для постраничной загрузки |
 | `compact` | `1` — облегчённый список без `photos`, `materialUsages`, `creator`, без полной AI-оценки. **Используйте для очереди исполнителя:** быстрее в 4 раза |
 
 - Общее количество записей приходит в заголовке **`X-Total-Count`**.
 - Сортировка: сначала по приоритету (аварийные первыми), затем по сроку.
-- В `status` передавайте только значения из таблицы выше: неизвестное значение сервер не проверяет и отвечает `500`.
+- Неизвестное значение в `status`, `priority` или `type` → `400`.
+- В каждом элементе есть признак **`isOverdue`** (срок прошёл, наряд не закрыт): красная метка в списке.
 
 Элемент `compact=1`:
 ```json
@@ -208,12 +216,30 @@
   "equipment": { "id": 2, "name": "Дробилка Д-2", "inventoryNumber": "INV-002", "type": "Дробилка", "criticality": 3, "qrToken": "5823…", "areaId": 3 },
   "assignee": { "id": 5, "fullName": "Исполнитель 2", "specialty": "Сварщик", "employeeStatus": "BUSY" },
   "faultCode": null,
-  "aiAssessment": { "verdict": "ACCEPTED", "score": 5, "masterScore": null }
+  "brigadeId": null, "brigade": null,
+  "aiAssessment": { "verdict": "ACCEPTED", "score": 5, "masterScore": null, "needsMasterReview": false },
+  "isOverdue": false
 }
 ```
-Без `compact` в элементе дополнительно есть `creator`, `photos[]`, `materialUsages[]` и полная `aiAssessment`.
+Без `compact` в элементе дополнительно есть `creator`, `normative`, `downtime`, `photos[]`, `materialUsages[]` и полная `aiAssessment`.
 
-**Просрочен ли наряд** — считайте на клиенте: `deadline < now` и статус не `CLOSED`, `CANCELLED` или `REJECTED`.
+### Панель смены — `GET /api/work-orders/board`
+
+Канбан для мастера (кейс, 5.2): колонки и счётчики смены одним запросом. Фильтры те же, что у списка (`areaId`, `equipmentId`, `assigneeId`, `brigadeId`, `priority`, `type`), плюс `hours` — длина смены для счётчиков (по умолчанию 12).
+
+```json
+{
+  "since": "2026-10-07T03:00:00.000Z",
+  "counters": { "issued": 14, "completed": 9, "overdue": 2, "equipmentInDowntime": 1 },
+  "columns": {
+    "issued": [/* компактные наряды */], "accepted": [], "inProgress": [], "queued": [],
+    "completed": [], "overdue": []
+  }
+}
+```
+- `inProgress` — `IN_PROGRESS`, `PAUSED`, `REWORK`; `completed` — `COMPLETED`, `AI_REVIEW` и закрытые за смену.
+- Просроченный наряд есть **и** в своей колонке, **и** в `overdue`.
+- Обновляйте по событию Socket.IO `work-order:changed` (не чаще раза в секунду).
 
 ### Карточка — `GET /api/work-orders/:id`
 
@@ -227,9 +253,28 @@
   "events": [{ "id": 277, "action": "CREATE", "fromStatus": null, "toStatus": "ISSUED", "comment": null, "createdAt": "…", "actor": { "id": 1, "fullName": "Мастер смены" } }]
 }
 ```
-`events[].action`: `CREATE`, `ACCEPT`, `QUEUE`, `REJECT`, `START`, `PAUSE`, `RESUME`, `COMPLETE`, `AI_REVIEW`, `SEND_TO_REWORK`, `CLOSE`, `CANCEL`, `EDIT`, `REASSIGN`.
+`events[].action`: `CREATE`, `ACCEPT`, `QUEUE`, `REJECT`, `START`, `PAUSE`, `RESUME`, `COMPLETE`, `AI_REVIEW`, `SEND_TO_REWORK`, `CLOSE`, `CANCEL`, `EDIT`, `REASSIGN`, `COMMENT`.
+
+В карточке есть **`timing`** — время против норматива и срока:
+```json
+{ "normativeHours": 2, "actualHours": 2.4, "vsNormativePercent": 120, "deadlineMet": false, "overdueMinutes": 35 }
+```
+`actualHours` — от начала работ до «Исполнено»; `deadlineMet` — `null`, пока наряд не выполнен.
 
 Ошибки: `404` — нет такого наряда; `403` — исполнитель открыл чужой наряд.
+
+### Отчёт по наряду — `GET /api/work-orders/:id/report`
+
+Ответ зависит от роли (кейс, 6.4):
+- **исполнитель** (только свой наряд) — `audience: "EXECUTOR"`: `finalScore` (оценка мастера, если есть, иначе ИИ), `aiScore`, `masterScore`, `verdict`, `explanation`, `strengths[]` («что сделано хорошо»), `improvements[]` («что улучшить»), `masterComment`, `photoComment`, `timing`;
+- **мастер, руководитель, админ** — `audience: "MASTER"`: вся карточка плюс `chronology[]` (`at`, `action`, `from`, `to`, `actor`, `comment`), `photosBefore[]`, `photosAfter[]`, `downtimeMinutes`, `timing`, `finalScore`. PDF той же карточки — `GET /api/reports/work-order/:id.pdf`.
+
+### Комментарий — `POST /api/work-orders/:id/comment`
+
+```json
+{ "comment": "ждём подшипник со склада", "clientActionId": "…" }
+```
+Комментарий без смены статуса: исполнитель — к своему наряду, мастер — к любому. Ответ `201 { order }`. Последний комментарий попадает в сообщение о просрочке. `clientActionId` работает как в действиях: повтор вернёт `replayed: true`.
 
 ### Создание — `POST /api/work-orders` (мастер, админ)
 
@@ -250,7 +295,8 @@
 
 | Поле | Правило |
 |---|---|
-| `type`, `priority`, `description` (≥ 3 символов), `areaId`, `equipmentId`, `assigneeId` | обязательны |
+| `type`, `priority`, `description` (≥ 3 символов), `areaId`, `equipmentId` | обязательны |
+| `assigneeId` **или** `brigadeId` | хотя бы одно. Только `brigadeId` — наряд выдаётся бригаде: старшим сервер назначает лучшего по подбору члена бригады на смене, остальные члены получают уведомление `BRIGADE_ORDER`. Оба поля — исполнитель обязан состоять в бригаде |
 | `deadline` **или** `normativeId` | хотя бы одно; без срока он считается как «сейчас + часы норматива» |
 | `equipmentId` | должен принадлежать `areaId`, иначе 400 |
 | `assigneeId` | только пользователь с ролью `EXECUTOR`, иначе 400 |
@@ -261,6 +307,7 @@
 | Ошибка | Причина |
 |---|---|
 | `400 Проверьте оборудование и исполнителя` | оборудование не на этом участке или исполнитель не `EXECUTOR` |
+| `400 Бригада не найдена` / `В бригаде нет исполнителей на смене` / `Исполнитель не состоит в этой бригаде` | ошибки выдачи бригаде |
 | `400 Норматив не найден` | неверный `normativeId` |
 | `400 Ошибка в данных запроса` | нет полей, нет ни `deadline`, ни `normativeId` (`details` → «Укажите срок или норматив») |
 | `409 Такая запись уже существует` | редкое совпадение номера при двух нарядах в одну миллисекунду — можно повторить |
@@ -270,7 +317,7 @@
 > ⚠️ **Создание не идемпотентно**: повторная отправка создаст второй наряд. Не ставьте создание в автоматическую офлайн-очередь без проверки; см. [§7](#7-офлайн-очередь).
 
 **Подсказки для формы создания:**
-1. Выбрали оборудование → `GET /api/recommendations/executors?equipmentId=` покажет, кого назначить ([§16](#16-рекомендации-и-ai-помощник)).
+1. Выбрали оборудование и ввели описание → `GET /api/recommendations/executors?equipmentId=…&description=…` покажет, кого назначить: свободных нужной специальности первыми ([§16](#16-рекомендации-и-ai-помощник)).
 2. Ввели описание → `POST /api/recommendations/work` предложит шифр, норматив и часы.
 3. Описание можно надиктовать ([§9](#9-голосовой-ввод)).
 
@@ -314,7 +361,7 @@
 | `COMPLETE` | исполнитель, мастер | `IN_PROGRESS` | см. ниже | |
 | `SEND_TO_REWORK` | **мастер, админ** | `AI_REVIEW` | — | `comment` (что исправить) |
 | `CLOSE` | **мастер, админ** | `AI_REVIEW` | — | `masterScore` 1–5, `comment`, `actualDowntimeMinutes` |
-| `CANCEL` | **мастер, админ** | `ISSUED`, `ACCEPTED`, `QUEUED`, `PAUSED` | — | `comment` |
+| `CANCEL` | **мастер, админ** | `ISSUED`, `ACCEPTED`, `QUEUED`, `IN_PROGRESS`, `PAUSED`, `REWORK` | — | `comment` |
 
 Во всех действиях можно передать `clientActionId` (8–100 символов, см. [§7](#7-офлайн-очередь)).
 
@@ -358,7 +405,7 @@ const ALLOWED: Record<WorkOrderAction, WorkOrderStatus[]> = {
   ACCEPT: ["ISSUED", "QUEUED"], QUEUE: ["ISSUED"], REJECT: ["ISSUED"],
   START: ["ACCEPTED", "QUEUED", "REWORK"], PAUSE: ["IN_PROGRESS"], RESUME: ["PAUSED"],
   COMPLETE: ["IN_PROGRESS"], SEND_TO_REWORK: ["AI_REVIEW"], CLOSE: ["AI_REVIEW"],
-  CANCEL: ["ISSUED", "ACCEPTED", "QUEUED", "PAUSED"]
+  CANCEL: ["ISSUED", "ACCEPTED", "QUEUED", "IN_PROGRESS", "PAUSED", "REWORK"]
 };
 const MASTER_ONLY: WorkOrderAction[] = ["SEND_TO_REWORK", "CLOSE", "CANCEL"];
 
@@ -393,14 +440,16 @@ export function availableActions(order: WorkOrder, user: { id: number; role: Rol
 
 ### Загрузка — `POST /api/uploads`
 
-`multipart/form-data`, поле **`file`**, до **15 МБ**. Сервер сам поворачивает изображение по EXIF, ужимает до 1600 px и сохраняет в JPEG.
+`multipart/form-data`, поле **`file`**, до **15 МБ**. Сервер сам поворачивает изображение по EXIF, ужимает до 1600 px и сохраняет в JPEG. Из метаданных остаётся **только время съёмки** (GPS, модель телефона и прочее удаляются).
+
+**Время съёмки** нужно для проверки «фото сделано при закрытии, а не старое». Сервер берёт его из EXIF камеры. Если EXIF нет (PWA, некоторые галереи), передайте необязательное поле **`takenAt`** (ISO-дата) — например, `file.lastModified` снимка с камеры.
 
 ```ts
 const form = new FormData();
 form.append("file", { uri, name: "photo.jpg", type: "image/jpeg" } as any); // React Native
-// веб: form.append("file", fileInput.files[0]);
+// веб: form.append("file", file); form.append("takenAt", new Date(file.lastModified).toISOString());
 const res = await fetch(`${BASE}/api/uploads`, { method: "POST", headers: { authorization: `Bearer ${token}` }, body: form });
-// 201 → { "url": "/uploads/8e3a…?exp=1791828000&sig=dE5Z…", "originalName": "photo.jpg", "size": 183402 }
+// 201 → { "url": "/uploads/8e3a…?exp=1791828000&sig=dE5Z…", "originalName": "photo.jpg", "size": 183402, "takenAt": "2026-10-07T04:20:00.000Z" }
 ```
 
 ### Показ
@@ -417,6 +466,7 @@ URL из ответа загрузки передавайте в `beforePhotoUrl
 
 Сервер проверяет фото «после»:
 - точный повтор фото из другого наряда или совпадение фото «до» и «после» → доработка;
+- фото снято **раньше выдачи наряда** (по времени съёмки) → доработка; снято **до начала работ** → пометка мастеру «нужна проверка»;
 - похожие фото → пометка мастеру «проверьте» (см. [§10](#10-ai-проверка-как-показывать)).
 
 Подсказывайте исполнителю снимать «до» и «после» с одной точки, но так, чтобы результат ремонта был виден.
@@ -460,6 +510,7 @@ const r = await fetch(`${BASE}/api/ai/transcribe`, { method: "POST", headers: { 
   "photoScore": 4,
   "photoComment": "Фото отличаются; требуется окончательная проверка мастером",
   "confidence": 0.55,
+  "needsMasterReview": true,
   "masterScore": null,
   "masterComment": null,
   "reviewedById": null
@@ -473,7 +524,7 @@ const r = await fetch(`${BASE}/api/ai/transcribe`, { method: "POST", headers: { 
 | `REWORK_REQUIRED` | ❌ «AI: рекомендует доработку» + `explanation` |
 
 - `score` — оценка 1–5, `photoScore` — оценка фото 1–5.
-- `confidence` < 0.5 означает, что AI не уверен; подсветите `photoComment` (например, «Фото после похоже на фото из наряда 772 — проверьте, что снимок новый»).
+- **`needsMasterReview: true`** — AI не уверен (похожие фото, фото снято до начала работ, низкая уверенность vision-модели, LLM недоступна). Вердикт тогда — лишь подсказка: покажите крупную плашку «Нужна проверка мастером» и `photoComment` (например, «Фото после похоже на фото из наряда 772 — проверьте, что снимок новый»). `explanation` в этом случае начинается с «Нужна проверка мастером.».
 - **Решение принимает мастер**: кнопки «Закрыть» (`CLOSE`, оценка 1–5 и комментарий) и «На доработку» (`SEND_TO_REWORK`, что исправить) доступны при любом вердикте AI.
 - В рейтингах используется `masterScore`, а если его нет — `score`.
 - Поле `rawResponse` служебное, показывать его не нужно.
@@ -547,10 +598,13 @@ POST /api/devices
 | `DEADLINE_REMINDER` | до срока ≤ 30 мин |
 | `OVERDUE_0`, `OVERDUE_1`, … | наряд просрочен; номер растёт каждые 30 мин просрочки |
 | `LONG_OVERDUE_4`, … | просрочка ≥ 2 ч — руководителю |
-| `NOT_ACCEPTED` | наряд не приняли (аварийный за 3 мин, обычный за 10) — мастеру |
+| `NOT_ACCEPTED` | наряд не приняли (аварийный за 3 мин, обычный за 10) — мастеру. В тексте — кого предлагается назначить; в push `data.suggestedExecutorId` — его id для кнопки «Переназначить» |
+| `BRIGADE_ORDER` | наряд выдан бригаде — остальным членам бригады на смене |
 | `WEEKLY_AI_SUMMARY` | AI-сводка недели, по понедельникам в 08:00 |
 
 Группируйте по префиксу: `type.startsWith("OVERDUE")` и т.п.
+
+Текст о просрочке собран сервером целиком, как в кейсе: «Наряд №Н-00147 просрочен на 45 мин. Дробилка КМД-1750 (Д-2), участок дробление. Исполнитель: Ахметов Е. Статус: в работе с 09:20. Последний комментарий: “ждём подшипник со склада”.» Время — по часовому поясу предприятия.
 
 ---
 
@@ -566,9 +620,11 @@ POST /api/devices
 | `GET /api/references/materials` | `{ id, name, unit }` |
 | `GET /api/references/brigades` | `{ id, name, members: [{ id, fullName, specialty }] }` |
 | `GET /api/references/normatives[?equipmentId=]` | `{ id, name, equipmentType, equipmentId, faultCodeId, hours: "2", faultCode, materialNorms: [{ materialId, quantity: "1", material }] }` |
-| `GET /api/references/executors` | `{ id, fullName, specialty, grade, employeeStatus, isOnShift, _count: { assignedOrders } }` |
+| `GET /api/references/executors[?specialty=&brigadeId=&onShift=1]` | `{ id, fullName, specialty, grade, brigadeId, brigade, employeeStatus, isOnShift, statusText, currentOrder, queue, activeOrders, _count: { assignedOrders } }` |
 
-`employeeStatus`: `AVAILABLE` (свободен), `BUSY` (занят), `QUEUED` (есть ожидающие наряды), `OFF_SHIFT` (не на смене). `_count.assignedOrders` — активных нарядов в очереди.
+`employeeStatus`: `AVAILABLE` (свободен), `BUSY` (занят), `QUEUED` (есть ожидающие наряды), `OFF_SHIFT` (не на смене). Цвета панели (кейс, 5.2): `AVAILABLE` — зелёный, `BUSY` — жёлтый, `QUEUED` — синий, `OFF_SHIFT` — серый.
+
+`statusText` — готовая подпись для выбора исполнителя: «свободен», «выполняет наряд №Н-00147, в очереди 1», «в очереди 2 наряда», «не на смене». `currentOrder` — `{ id, number, status, priority, deadline, equipment: { name } }` или `null`; `queue` — нарядов в ожидании (`ISSUED`, `QUEUED`).
 
 ---
 
@@ -586,13 +642,13 @@ QR содержит ссылку вида `…/equipment/<qrToken>`. **Бери�
 
 ## 16. Рекомендации и AI-помощник
 
-### Кого назначить — `GET /api/recommendations/executors?equipmentId=1`
+### Кого назначить — `GET /api/recommendations/executors?equipmentId=1&description=…`
 
-Только исполнители на смене, лучшие первыми:
+Параметры: `equipmentId` (обязателен), а также подсказки о работе — `description` (текст проблемы), `faultCodeId`, `specialty`; `brigadeId` — искать только в бригаде. Только исполнители на смене; **сначала нужной специальности**, внутри — по баллу:
 ```json
-[{ "id": 6, "fullName": "Исполнитель 3", "specialty": "Слесарь", "employeeStatus": "AVAILABLE", "queue": 0, "equipmentRating": 4.6, "score": 86.8 }]
+[{ "id": 6, "fullName": "Ким Вадим Олегович", "specialty": "Слесарь", "brigadeId": 1, "employeeStatus": "AVAILABLE", "queue": 0, "equipmentRating": 4.6, "specialtyMatch": true, "requiredSpecialty": "Слесарь", "score": 86.8 }]
 ```
-`equipmentRating` — средняя оценка работ на таком типе оборудования, `queue` — активных нарядов. Без `equipmentId` — 400, с несуществующим — 404.
+Специальность определяется так: явный `specialty` → категория шифра (`Э` — электрик, остальные — слесарь) → слова в описании («двигатель», «кабель», «пускатель» — электрик; «сварка», «трещина» — сварщик; иначе слесарь). Без подсказок специальность не учитывается и `specialtyMatch: null`. `equipmentRating` — средняя оценка работ на таком типе оборудования, `queue` — активных нарядов. Без `equipmentId` — 400, с несуществующим — 404.
 
 ### Шифр и норматив по описанию — `POST /api/recommendations/work`
 
@@ -625,13 +681,15 @@ QR содержит ссылку вида `…/equipment/<qrToken>`. **Бери�
 | `FREE_EXECUTORS` | `[{ id, fullName, specialty, grade }]` | список людей с кнопкой «Назначить» |
 | `OVERDUE` | наряды с `equipment`, `assignee` | список нарядов |
 | `EQUIPMENT_HISTORY` | наряды с `faultCode`, `aiAssessment` | история |
-| `SHIFT_REPORT` | `[{ status, _count }]` | цифры по статусам |
+| `SHIFT_REPORT` | отчёт за смену/период ([§17](#17-аналитика-отчёты-выгрузки)) без `load`, плюс `area`, `periodDays`, `busiestExecutors` | цифры и сводка |
 | `ANOMALIES` | аномалии ([§17](#17-аналитика-отчёты-выгрузки)) | карточки аномалий |
 | `FAILURE_FORECAST` | прогноз | список с вероятностью |
 
 История диалога: `GET /api/assistant/history` — 100 сообщений, новые первыми; поле `role` принимает значения `user` или `assistant`.
 
-Подсказки-кнопки: «Кто свободен?», «Что просрочено?», «Как прошла смена?», «Покажи аномалии», «Прогноз отказов». Можно спрашивать и по-казахски.
+Участок и период помощник понимает из вопроса: «Сформируй отчёт за неделю по участку обогащения», «Покажи проблемы участка дробления за месяц». Тогда в `intent` есть `periodDays` (смена 0.5, сутки 1, неделя 7, месяц 30, квартал 90), `areaId` и `area`; данные отфильтрованы по участку (отчёт, просрочки, аномалии, прогноз).
+
+Подсказки-кнопки: «Кто свободен?», «Что просрочено?», «Как прошла смена?», «Отчёт за неделю по участку…», «Покажи аномалии», «Прогноз отказов». Можно спрашивать и по-казахски.
 
 ---
 
@@ -639,29 +697,32 @@ QR содержит ссылку вида `…/equipment/<qrToken>`. **Бери�
 
 Доступны мастеру, руководителю и админу.
 
-**Фильтры отчётов** работают не везде одинаково:
+**Фильтры** одинаковы для всех отчётов `reports/*` и выгрузок (кейс, раздел 7):
 
-| Запрос | Принимает | Период по умолчанию | По какой дате |
-|---|---|---|---|
-| `reports/shift`, `export.xlsx`, `export.pdf` | `from`, `to`, `areaId`, `equipmentId`, `executorId`, `brigadeId` | 12 ч / 30 дней / 12 ч | создание наряда |
-| `reports/ratings`, `reports/brigade-ratings` | только `from` | 30 дней | закрытие наряда |
-| `reports/materials` | `from`, `areaId` | 30 дней | создание наряда |
-| `reports/downtime` | только `from` | 30 дней | начало простоя |
+| Параметр | Значение |
+|---|---|
+| `period` | `shift` (12 ч), `day`, `week`, `month` (30 дней) |
+| `from`, `to` | произвольный период (ISO-даты); `from` важнее `period` |
+| `areaId`, `equipmentId`, `executorId`, `brigadeId` | фильтры |
 
-Остальные параметры эти запросы молча игнорируют. `export.pdf` содержит не больше 200 нарядов.
+По умолчанию: отчёт за смену — 12 ч, остальные — 30 дней. Отчёт за смену, материалы, простои и выгрузка нарядов считают по дате создания наряда, рейтинги — по дате закрытия.
 
 | Запрос | Ответ |
 |---|---|
-| `GET /api/analytics/dashboard` | `{ active, overdue, equipmentInDowntime, averageReactionMinutes, averageCompletionMinutes, topEquipment: [{ equipmentId, name, _count }], topExecutors: [{ id, fullName, score, closed }] }` |
+| `GET /api/analytics/dashboard` | `{ active, overdue, equipmentInDowntime, averageReactionMinutes, averageCompletionMinutes, topEquipment: [{ equipmentId, name, _count }], topAreas: [{ areaId, name, units, emergencies, emergenciesPerUnit, downtime, downtimePerUnit, orders }], topExecutors: [{ id, fullName, score, closed }] }` |
 | `GET /api/analytics/failure-forecast?days=30` | `[{ equipmentId, equipment, recentFailures, previousFailures, growth, probability }]`; `probability` 0.05–0.95 → показывать в % |
-| `GET /api/analytics/anomalies` | `[{ id, type, title, description, recommendation, severity 1–5, evidence, area, equipment, periodFrom, periodTo }]` |
-| `POST /api/analytics/anomalies/run` `{ from?, to? }` | `{ insights: [...], ai: { summary, recommendations[] } }` — пересчёт, 5–20 с |
-| `GET /api/reports/shift` | `{ from, issued, completed, closed, overdue, aiSummary }` (по умолчанию 12 ч) |
-| `GET /api/reports/ratings` | `[{ id, fullName, score 0–100, quality, onTimeRate 0–1, reworkRate 0–1, productivity, unjustifiedRejects, complexityBonus, closed, explanation }]` |
-| `GET /api/reports/brigade-ratings` | `[{ id, name, closed, quality, onTimeRate, score }]` |
-| `GET /api/reports/materials` | `[{ materialId, _sum: { quantity: "2" }, _count, material }]` |
-| `GET /api/reports/downtime` | `[{ id, equipmentId, workOrderId, startedAt, endedAt, reason, minutes, equipment: { …, area }, workOrder: { …, faultCode } }]`; у открытого простоя `endedAt: null`, `minutes` — до текущего момента |
-| `GET /api/reports/work-order/:id` | карточка для печати: наряд с `area`, `equipment`, `creator.fullName`, `assignee.fullName`, `events` (без `actor`), `photos`, `materialUsages`, `aiAssessment`; несуществующий id → `200 null` |
+| `GET /api/analytics/anomalies[?areaId=&type=]` | `[{ id, type, title, description, recommendation, severity 1–5, evidence, area, equipment, periodFrom, periodTo }]`; с `areaId` — аномалии участка и общие (`areaId: null`) |
+| `POST /api/analytics/anomalies/run` `{ from?, to?, areaId? }` | `{ insights: [...], ai: { summary, recommendations[] } }` — пересчёт, 5–20 с |
+| `GET /api/reports/shift` | `{ from, to, issued, completed, closed, overdue, rejected, cancelled, inProgress, load: [{ id, fullName, specialty, employeeStatus, isOnShift, assigned, completed, activeNow }], workload: { executorsOnShift, busy, free }, downtime: { equipmentInDowntimeNow, orders, minutes }, aiSummary }` |
+| `GET /api/reports/ratings` | `[{ id, fullName, specialty, brigadeId, score 0–100, quality, onTimeRate, reworkRate, repeatFailureRate, returnRate, productivity, unjustifiedRejects, complexityBonus, closed, points: { quality, onTime, noReturns, volume, complexity, rejects }, explanation, formula }]` |
+| `GET /api/reports/my-rating` | то же для текущего исполнителя (любая роль может вызвать, но не-исполнителю — 404) |
+| `GET /api/reports/brigade-ratings` | `[{ id, name, members, closed, quality, onTimeRate, repeatFailureRate, score }]` |
+| `GET /api/reports/materials[?groupBy=material\|area\|equipment\|executor]` | `[{ group: { id, name } \| null, materialId, material, unit, quantity, count, normQuantity, deviationPercent, overNormCount, overNormOrders[], _sum, _count }]` |
+| `GET /api/reports/downtime` | `{ from, to, totals: { minutes, plannedMinutes, unplannedMinutes, plannedShare, unplannedShare, ongoing }, byEquipment: [{ equipmentId, equipment, area, minutes, count, plannedMinutes, unplannedMinutes, plannedShare, unplannedShare, ongoing, byFaultCode: [{ code, name, minutes, count }] }], items: [{ workOrderId, number, type, equipment, area, faultCode, reason, startedAt, endedAt, ongoing, minutes }] }` |
+| `GET /api/reports/work-order/:id` | полный отчёт мастеру, как `GET /api/work-orders/:id/report`; несуществующий id → 404 |
+| `GET /api/reports/work-order/:id.pdf` | тот же отчёт в PDF |
+
+**Рейтинг исполнителя** — прозрачная формула, `points` — сколько баллов дала каждая часть, `explanation` — готовый текст для исполнителя: «Качество 4.5 из 5 → 40.5 из 45; в срок 80% → 20 из 25; без доработок и повторных поломок 90% → 13.5 из 15; … Итого 79 из 100. Больше всего баллов можно добавить, если закрывать наряды в срок…». Возвратом считается наряд, который мастер вернул на доработку **или** после которого та же неисправность на том же оборудовании повторилась в течение 7 дней.
 
 Пример `GET /api/analytics/dashboard`:
 ```json
@@ -674,7 +735,7 @@ QR содержит ссылку вида `…/equipment/<qrToken>`. **Бери�
 ```
 - `active` — наряды в `ISSUED`, `ACCEPTED`, `QUEUED`, `IN_PROGRESS`, `PAUSED`, `REWORK`; `overdue` — из них просроченные.
 - `averageReactionMinutes` — от создания до принятия, `averageCompletionMinutes` — от начала до завершения; оба по закрытым за 30 дней.
-- `topEquipment` — топ-5 по аварийным нарядам за 30 дней; `topExecutors` — топ-5 по средней оценке 1–5 за 30 дней.
+- `topEquipment` — топ-5 по аварийным нарядам за 30 дней; `topAreas` — участки, отсортированные по авариям на единицу оборудования за 30 дней; `topExecutors` — топ-5 по средней оценке 1–5 за 30 дней.
 
 Пример аномалии:
 ```json
@@ -687,7 +748,19 @@ QR содержит ссылку вида `…/equipment/<qrToken>`. **Бери�
 ```
 В ответе `POST /anomalies/run` элементы `insights` приходят **без** `area` и `equipment`.
 
-Аномалии `type`: `FREQUENT_FAILURES` (частые отказы), `REPEATED_FAULT` (повторяющийся шифр), `FAILURE_AFTER_PLANNED_MAINTENANCE` (отказы после ППР), `MATERIAL_ANOMALY` (расход материалов).
+Аномалии `type`:
+
+| `type` | Что найдено | Привязка |
+|---|---|---|
+| `FREQUENT_FAILURES` | частые отказы оборудования | `equipmentId` |
+| `REPEATED_FAULT` | один шифр повторяется на оборудовании | `equipmentId` |
+| `FAILURE_AFTER_PLANNED_MAINTENANCE` | отказы вскоре после ППР | `equipmentId` |
+| `MATERIAL_ANOMALY` | расход сверх нормы | `equipmentId` |
+| `AREA_HOTSPOT` | участок с наибольшим числом аварий или простоем на единицу оборудования | `areaId` |
+| `SHIFT_PATTERN` | аварии сосредоточены в одной смене | общая |
+| `TIME_OF_DAY` | пик аварий в один интервал суток | общая |
+| `EXECUTOR_REPEAT_FAILURES` | после ремонтов исполнителя та же неисправность возвращается в течение 7 дней; `evidence.executorId` | общая |
+| `BRIGADE_REPEAT_FAILURES` | то же по бригаде; `evidence.brigadeId` | общая |
 
 **Выгрузки** отдаются как файлы и требуют заголовок авторизации:
 ```ts
@@ -696,8 +769,9 @@ const blob = await r.blob();
 const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "naryad-report.xlsx" });
 a.click();
 ```
-- `export.xlsx` — по умолчанию за 30 дней;
-- `export.pdf` — по умолчанию за 12 ч.
+- параметр **`report`** выбирает отчёт: `orders` (по умолчанию — список нарядов), `shift`, `ratings`, `brigades`, `materials` (с `groupBy`), `downtime`, `anomalies`; фильтры — как выше;
+- `export.xlsx?report=shift` — лист с таблицей и лист «Итоги» со сводкой;
+- `export.pdf` без периода для `orders` — за текущую смену (12 ч), остальные отчёты — 30 дней.
 
 ---
 
@@ -826,7 +900,10 @@ export const act = (id: number, body: ActionRequest) =>
 - [ ] Кнопки действий по `availableActions()`; поля причины для `REJECT` и `PAUSE`.
 - [ ] `COMPLETE`: обязательные текст и шифр, фото для аварийных; экран ожидания AI; таймаут ≥ 250 с.
 - [ ] Офлайн: `clientActionId` на каждое действие; `replayed: true` = успех; 409 = снять из очереди и обновить.
-- [ ] Фото: загрузка до `COMPLETE`, ссылки как есть, при 401 картинки — перезапрос наряда.
+- [ ] Фото: загрузка до `COMPLETE`, ссылки как есть, при 401 картинки — перезапрос наряда; `takenAt` из `file.lastModified`, если снимок без EXIF.
+- [ ] Карточка исполнителя: комментарий без смены статуса (`/comment`), «Моя оценка» из `/:id/report`, «Мой рейтинг» с `explanation`.
+- [ ] Панель мастера: `/work-orders/board` (колонки + счётчики), цвета статусов исполнителей, `statusText` при выборе исполнителя, подбор с `description`.
+- [ ] AI-проверка: плашка «Нужна проверка мастером» при `needsMasterReview`; по `NOT_ACCEPTED` — кнопка «Переназначить» на `data.suggestedExecutorId`.
 - [ ] Голос: поле `audio`, редактируемый результат, обработка 422 и 502.
 - [ ] Socket.IO: подключение с токеном, `upsert` по `work-order:changed`, удаление переназначенного, перезапрос после reconnect.
 - [ ] FCM: регистрация после входа, удаление при выходе, канал `emergency_orders`, открытие наряда по `data.workOrderId`.

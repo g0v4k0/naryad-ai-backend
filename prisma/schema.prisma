@@ -108,9 +108,11 @@ model Equipment {
 }
 
 model Brigade {
-  id      Int    @id @default(autoincrement())
-  name    String @unique
+  id      Int         @id @default(autoincrement())
+  name    String      @unique
   members User[]
+  /// Orders issued to the whole brigade (the assignee is the member picked to lead it).
+  orders  WorkOrder[]
 }
 
 model User {
@@ -205,6 +207,7 @@ model WorkOrder {
   equipmentId           Int
   creatorId             Int
   assigneeId            Int
+  brigadeId             Int?
   faultCodeId           Int?
   normativeId           Int?
   actualDowntimeMinutes Int?
@@ -212,6 +215,7 @@ model WorkOrder {
   equipment             Equipment          @relation(fields: [equipmentId], references: [id])
   creator               User               @relation("CreatedOrders", fields: [creatorId], references: [id])
   assignee              User               @relation("AssignedOrders", fields: [assigneeId], references: [id])
+  brigade               Brigade?           @relation(fields: [brigadeId], references: [id])
   faultCode             FaultCode?         @relation(fields: [faultCodeId], references: [id])
   normative             WorkNormative?     @relation(fields: [normativeId], references: [id])
   events                WorkOrderEvent[]
@@ -224,6 +228,7 @@ model WorkOrder {
   @@index([status, deadline])
   @@index([assigneeId, status])
   @@index([equipmentId, createdAt])
+  @@index([brigadeId])
 }
 
 model IntegrationMapping {
@@ -304,23 +309,25 @@ model MaterialUsage {
 }
 
 model AiAssessment {
-  id            Int       @id @default(autoincrement())
-  workOrderId   Int       @unique
-  verdict       AiVerdict
-  score         Int
-  explanation   String    @db.Text
-  strengths     Json?
-  improvements  Json?
-  rawResponse   Json?
-  confidence    Float?
-  photoScore    Int?
-  photoComment  String?   @db.Text
-  masterScore   Int?
-  masterComment String?   @db.Text
-  reviewedById  Int?
-  createdAt     DateTime  @default(now())
-  workOrder     WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
-  reviewedBy    User?     @relation("MasterScores", fields: [reviewedById], references: [id])
+  id                Int       @id @default(autoincrement())
+  workOrderId       Int       @unique
+  verdict           AiVerdict
+  score             Int
+  explanation       String    @db.Text
+  strengths         Json?
+  improvements      Json?
+  rawResponse       Json?
+  confidence        Float?
+  /// Low AI confidence: the master must decide, the AI verdict is only a hint.
+  needsMasterReview Boolean   @default(false)
+  photoScore        Int?
+  photoComment      String?   @db.Text
+  masterScore       Int?
+  masterComment     String?   @db.Text
+  reviewedById      Int?
+  createdAt         DateTime  @default(now())
+  workOrder         WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  reviewedBy        User?     @relation("MasterScores", fields: [reviewedById], references: [id])
 }
 
 model Notification {

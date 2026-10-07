@@ -27,6 +27,11 @@ const schema = z.object({
   ,LOGIN_MAX_ATTEMPTS_PER_IP: z.coerce.number().int().positive().default(30)
   ,LOGIN_LOCK_MINUTES: z.coerce.number().int().positive().default(15)
   ,UPLOAD_URL_TTL_HOURS: z.coerce.number().int().positive().default(168)
+  // Plant time zone: shift boundaries, time-of-day analytics, EXIF wall-clock times and message dates.
+  ,APP_TIMEZONE: z.string().default("Asia/Qostanay")
+  // Day shift start/end hours in APP_TIMEZONE; the rest is the night shift.
+  ,DAY_SHIFT_START_HOUR: z.coerce.number().int().min(0).max(23).default(8)
+  ,DAY_SHIFT_END_HOUR: z.coerce.number().int().min(0).max(23).default(20)
 });
 
 export const config = schema.parse(process.env);

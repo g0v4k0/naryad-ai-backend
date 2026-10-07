@@ -14,7 +14,7 @@ const table: Record<WorkOrderAction, [WorkOrderStatus[], WorkOrderStatus]> = {
   COMPLETE: [[S.IN_PROGRESS], S.COMPLETED],
   SEND_TO_REWORK: [[S.AI_REVIEW], S.REWORK],
   CLOSE: [[S.AI_REVIEW], S.CLOSED],
-  CANCEL: [[S.ISSUED, S.ACCEPTED, S.QUEUED, S.PAUSED], S.CANCELLED]
+  CANCEL: [[S.ISSUED, S.ACCEPTED, S.QUEUED, S.IN_PROGRESS, S.PAUSED, S.REWORK], S.CANCELLED]
 };
 const statuses = Object.values(S);
 const cases = (Object.keys(table) as WorkOrderAction[]).flatMap((action) => statuses.map((status) => ({ action, status, allowed: table[action][0].includes(status), target: table[action][1] })));
@@ -22,7 +22,7 @@ const cases = (Object.keys(table) as WorkOrderAction[]).flatMap((action) => stat
 describe("машина состояний наряда", () => {
   it("матрица покрывает 10 действий × 11 статусов", () => {
     expect(cases).toHaveLength(110);
-    expect(cases.filter((x) => x.allowed)).toHaveLength(16);
+    expect(cases.filter((x) => x.allowed)).toHaveLength(18);
   });
 
   it.each(cases.filter((x) => x.allowed))("$action из $status → $target", ({ action, status, target }) => {

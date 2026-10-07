@@ -7,8 +7,14 @@ import { recommendExecutors, suggestFaultAndNormative } from "../services/recomm
 export const recommendationsRouter = Router();
 recommendationsRouter.use(auth);
 recommendationsRouter.get("/executors", asyncHandler(async (req, res) => {
-  const { equipmentId } = z.object({ equipmentId: z.coerce.number().int().positive() }).parse(req.query);
-  res.json(await recommendExecutors(equipmentId));
+  const { equipmentId, ...hints } = z.object({
+    equipmentId: z.coerce.number().int().positive(),
+    specialty: z.string().trim().min(1).optional(),
+    faultCodeId: z.coerce.number().int().positive().optional(),
+    description: z.string().max(2000).optional(),
+    brigadeId: z.coerce.number().int().positive().optional()
+  }).parse(req.query);
+  res.json(await recommendExecutors(equipmentId, hints));
 }));
 recommendationsRouter.post("/work", asyncHandler(async (req, res) => {
   const input = z.object({ description: z.string().min(3), equipmentId: z.number().int().positive() }).parse(req.body);

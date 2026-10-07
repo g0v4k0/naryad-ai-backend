@@ -18,11 +18,12 @@ describe("отчёты", () => {
     await insertOrder(base, { status: "IN_PROGRESS", deadline: new Date(Date.now() - 1000) });
     mocks.ollama.handler = () => ollamaReply({ summary: "Смена прошла штатно" });
     const res = await request(app).get("/api/reports/shift").set(bearer(base.master));
-    expect(res.body).toMatchObject({ issued: 3, completed: 2, closed: 1, overdue: 1, aiSummary: "Смена прошла штатно" });
+    expect(res.body).toMatchObject({ issued: 3, completed: 2, closed: 1, overdue: 1, rejected: 0, aiSummary: "Смена прошла штатно" });
+    const fallback = "За период выдано 3, закрыто 1, просрочено 1, отклонено 0. Простой оборудования 0 мин, сейчас в простое 0. На смене 2 исполнителей, заняты 1.";
     mocks.ollama.handler = () => ({ status: 500 });
-    expect((await request(app).get("/api/reports/shift").set(bearer(base.master))).body.aiSummary).toBe("За период выдано 3, закрыто 1, просрочено 1.");
+    expect((await request(app).get("/api/reports/shift").set(bearer(base.master))).body.aiSummary).toBe(fallback);
     mocks.ollama.handler = () => ollamaReply({ summary: { text: "не строка" } });
-    expect((await request(app).get("/api/reports/shift").set(bearer(base.master))).body.aiSummary).toBe("За период выдано 3, закрыто 1, просрочено 1.");
+    expect((await request(app).get("/api/reports/shift").set(bearer(base.master))).body.aiSummary).toBe(fallback);
   });
 
   it("фильтры отчётов по участку и исполнителю", async () => {
@@ -62,9 +63,10 @@ describe("отчёты", () => {
     await prisma.materialUsage.create({ data: { workOrderId: o.id, materialId: base.bearing.id, quantity: 3 } });
     await prisma.equipmentDowntime.create({ data: { equipmentId: base.pump.id, workOrderId: o.id, startedAt: new Date(Date.now() - 2 * hour), endedAt: new Date(Date.now() - hour) } });
     const m = await request(app).get("/api/reports/materials").set(bearer(base.manager));
-    expect(m.body[0]).toMatchObject({ _sum: { quantity: "3" }, material: { name: "Подшипник 6205" } });
+    expect(m.body[0]).toMatchObject({ quantity: 3, count: 1, unit: "шт", deviationPercent: null, _sum: { quantity: "3" }, material: { name: "Подшипник 6205" } });
     const d = await request(app).get("/api/reports/downtime").set(bearer(base.manager));
-    expect(d.body[0].minutes).toBe(60);
+    expect(d.body.items[0].minutes).toBe(60);
+    expect(d.body.byEquipment[0]).toMatchObject({ equipment: "Насос Н-1", minutes: 60, plannedMinutes: 60, unplannedMinutes: 0 });
     expect((await request(app).get(`/api/reports/work-order/${o.id}`).set(bearer(base.manager))).body.id).toBe(o.id);
   });
 

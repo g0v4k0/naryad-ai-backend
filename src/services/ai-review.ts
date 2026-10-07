@@ -57,6 +57,7 @@ export async function reviewWorkOrder(workOrderId: number) {
   const safetyViolation = findSafetyViolation(order.completionText);
   const photoReview = await analyzeOrderPhotos(workOrderId);
   let review: Review;
+  let llmAvailable = true;
   try {
     review = reviewSchema.parse(await askOllama<unknown>(
       REVIEW_PROMPT,
@@ -76,6 +77,7 @@ export async function reviewWorkOrder(workOrderId: number) {
     ));
   } catch (error) {
     if (config.AI_STRICT) throw error;
+    llmAvailable = false;
     review = missing.length
       ? { verdict: AiVerdict.REWORK_REQUIRED, score: 2, explanation: `Не заполнено: ${missing.join(", ")}`, strengths: [], improvements: missing }
       : { verdict: AiVerdict.ACCEPTED_WITH_COMMENTS, score: 4, explanation: "Базовая проверка пройдена; Ollama временно недоступна", strengths: ["Обязательные поля заполнены"], improvements: ["Проверить результат мастером"] };
@@ -96,18 +98,21 @@ export async function reviewWorkOrder(workOrderId: number) {
     review.explanation = `${review.explanation}. Нарушение безопасности в отчёте: «${safetyViolation}»`;
   }
   // A missing after-photo is already handled by `missing` (required for emergency orders only).
-  if (photoReview.duplicate || (photoReview.score <= 2 && !photoReview.missing)) {
+  if (photoReview.duplicate || photoReview.stale || (photoReview.score <= 2 && !photoReview.missing)) {
     review.verdict = AiVerdict.REWORK_REQUIRED;
     review.score = Math.min(review.score, 2);
     review.explanation = `${review.explanation}. Фото: ${photoReview.comment}`;
   }
   review.score = Math.max(1, Math.min(5, Math.round(review.score)));
+  // 6.3.4: when the AI is unsure it flags the order for the master instead of deciding alone.
+  const needsMasterReview = !llmAvailable || Boolean(photoReview.suspicious) || Boolean(photoReview.lowConfidence);
+  if (needsMasterReview) review.explanation = `Нужна проверка мастером. ${review.explanation}`;
 
   return prisma.$transaction(async (tx) => {
     const assessment = await tx.aiAssessment.upsert({
       where: { workOrderId },
-      create: { workOrderId, ...review, confidence: photoReview.confidence, photoScore: photoReview.score, photoComment: photoReview.comment, rawResponse: { review, photoReview } },
-      update: { ...review, confidence: photoReview.confidence, photoScore: photoReview.score, photoComment: photoReview.comment, rawResponse: { review, photoReview } }
+      create: { workOrderId, ...review, needsMasterReview, confidence: photoReview.confidence, photoScore: photoReview.score, photoComment: photoReview.comment, rawResponse: { review, photoReview } },
+      update: { ...review, needsMasterReview, confidence: photoReview.confidence, photoScore: photoReview.score, photoComment: photoReview.comment, rawResponse: { review, photoReview } }
     });
     await tx.workOrder.update({ where: { id: workOrderId }, data: { status: WorkOrderStatus.AI_REVIEW } });
     await tx.workOrderEvent.create({

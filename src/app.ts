@@ -24,6 +24,8 @@ import { adminRouter } from "./routes/admin.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { prisma } from "./lib/prisma.js";
 import { config } from "./config.js";
+import { exifCaptureTime } from "./lib/exif.js";
+import { exifWallTime } from "./lib/time.js";
 import { requireUploadAccess, signJsonUploadUrls } from "./lib/signed-urls.js";
 
 mkdirSync("uploads", { recursive: true });
@@ -58,12 +60,18 @@ app.use("/api/admin", adminRouter);
 app.use("/api/integrations", integrationsRouter);
 app.post("/api/uploads", auth, upload.single("file"), asyncHandler(async (req, res) => {
   if (!req.file) throw new HttpError(400, "Файл не передан");
+  let takenAt: Date | null = null;
   if (req.file.mimetype.startsWith("image/")) {
     const source = await readFile(req.file.path);
-    const compressed = await sharp(source).rotate().resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer();
-    await writeFile(req.file.path, compressed);
+    // Capture time: camera EXIF, else the client's value (a PWA sends File.lastModified of the camera shot).
+    const clientTakenAt = typeof req.body?.takenAt === "string" ? new Date(req.body.takenAt) : null;
+    takenAt = exifCaptureTime((await sharp(source).metadata()).exif) ?? (clientTakenAt && !Number.isNaN(clientTakenAt.getTime()) ? clientTakenAt : null);
+    // Metadata is stripped (GPS, device) except the capture time, which the photo check needs.
+    let pipeline = sharp(source).rotate().resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true });
+    if (takenAt) pipeline = pipeline.withExif({ IFD0: { DateTime: exifWallTime(takenAt) } });
+    await writeFile(req.file.path, await pipeline.jpeg({ quality: 80 }).toBuffer());
   }
-  res.status(201).json({ url: `/uploads/${req.file.filename}`, originalName: req.file.originalname, size: req.file.size });
+  res.status(201).json({ url: `/uploads/${req.file.filename}`, originalName: req.file.originalname, size: req.file.size, takenAt });
 }));
 app.use((_req, _res, next) => next(new HttpError(404, "Маршрут не найден")));
 app.use(errorHandler);

@@ -22,7 +22,8 @@ const transitions: Record<WorkOrderAction, WorkOrderStatus[]> = {
   COMPLETE: [WorkOrderStatus.IN_PROGRESS],
   SEND_TO_REWORK: [WorkOrderStatus.AI_REVIEW],
   CLOSE: [WorkOrderStatus.AI_REVIEW],
-  CANCEL: [WorkOrderStatus.ISSUED, WorkOrderStatus.ACCEPTED, WorkOrderStatus.QUEUED, WorkOrderStatus.PAUSED]
+  // The master may stop any unfinished order, including one in progress or sent back for rework.
+  CANCEL: [WorkOrderStatus.ISSUED, WorkOrderStatus.ACCEPTED, WorkOrderStatus.QUEUED, WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.PAUSED, WorkOrderStatus.REWORK]
 };
 
 const targets: Record<WorkOrderAction, WorkOrderStatus> = {

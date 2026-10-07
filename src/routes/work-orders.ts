@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { AiVerdict, Prisma, PhotoType, Role, WorkOrderStatus } from "@prisma/client";
 import { z } from "zod";
 import { nextStatus, type WorkOrderAction } from "../domain/work-order-state.js";
@@ -11,6 +11,8 @@ import { reviewWorkOrder } from "../services/ai-review.js";
 import { notify } from "../services/notifications.js";
 import { refreshEmployeeStatus } from "../services/employee-status.js";
 import { enqueueWorkOrderSync } from "../services/one-c.js";
+import { executorOrderReport, masterOrderReport, orderTiming } from "../services/order-report.js";
+import { recommendExecutors } from "../services/recommendations.js";
 
 export const workOrdersRouter = Router();
 workOrdersRouter.use(auth);
@@ -20,10 +22,13 @@ const orderInclude = {
   equipment: true,
   creator: { select: { id: true, fullName: true } },
   assignee: { select: { id: true, fullName: true, specialty: true, employeeStatus: true } },
+  brigade: true,
   faultCode: true,
+  normative: true,
   photos: true,
   materialUsages: { include: { material: true } },
-  aiAssessment: true
+  aiAssessment: true,
+  downtime: true
 } as const;
 
 // Compact list for mobile queues: no photos or material lines.
@@ -31,21 +36,49 @@ const listCompactInclude = {
   area: true,
   equipment: true,
   assignee: { select: { id: true, fullName: true, specialty: true, employeeStatus: true } },
+  brigade: true,
   faultCode: true,
-  aiAssessment: { select: { verdict: true, score: true, masterScore: true } }
+  aiAssessment: { select: { verdict: true, score: true, masterScore: true, needsMasterReview: true } }
 } as const;
 
 // Orders that are finished or awaiting the master's decision cannot change hands.
 const NOT_REASSIGNABLE: WorkOrderStatus[] = [WorkOrderStatus.COMPLETED, WorkOrderStatus.AI_REVIEW, WorkOrderStatus.CLOSED, WorkOrderStatus.CANCELLED];
 
-workOrdersRouter.get("/", asyncHandler(async (req, res) => {
-  const status = typeof req.query.status === "string" ? req.query.status.split(",") as WorkOrderStatus[] : undefined;
-  const where = {
-    ...(status ? { status: { in: status } } : {}),
-    ...(req.query.areaId ? { areaId: Number(req.query.areaId) } : {}),
-    ...(req.query.assigneeId ? { assigneeId: Number(req.query.assigneeId) } : {}),
+const OPEN_STATUSES: WorkOrderStatus[] = ["ISSUED", "ACCEPTED", "QUEUED", "IN_PROGRESS", "PAUSED", "REWORK"];
+const csv = <T extends string>(values: readonly [T, ...T[]]) => z.string().transform((v) => v.split(",").map((x) => x.trim()).filter(Boolean)).pipe(z.array(z.enum(values)));
+
+const listFilters = z.object({
+  status: csv(Object.values(WorkOrderStatus) as [WorkOrderStatus, ...WorkOrderStatus[]]).optional(),
+  priority: csv(["EMERGENCY", "HIGH", "NORMAL", "PLANNED"]).optional(),
+  type: z.enum(["PLANNED", "EMERGENCY"]).optional(),
+  areaId: z.coerce.number().int().positive().optional(),
+  equipmentId: z.coerce.number().int().positive().optional(),
+  assigneeId: z.coerce.number().int().positive().optional(),
+  brigadeId: z.coerce.number().int().positive().optional(),
+  overdue: z.enum(["0", "1", "true", "false"]).transform((v) => v === "1" || v === "true").optional()
+});
+
+/** Filters shared by the list and the board; executors only ever see their own orders. */
+function listWhere(req: Request, filters: z.infer<typeof listFilters>): Prisma.WorkOrderWhereInput {
+  const and: Prisma.WorkOrderWhereInput[] = [];
+  if (filters.status) and.push({ status: { in: filters.status } });
+  if (filters.overdue) and.push({ deadline: { lt: new Date() }, status: { in: OPEN_STATUSES } });
+  return {
+    ...(and.length ? { AND: and } : {}),
+    ...(filters.priority ? { priority: { in: filters.priority } } : {}),
+    ...(filters.type ? { type: filters.type } : {}),
+    ...(filters.areaId ? { areaId: filters.areaId } : {}),
+    ...(filters.equipmentId ? { equipmentId: filters.equipmentId } : {}),
+    ...(filters.assigneeId ? { assigneeId: filters.assigneeId } : {}),
+    ...(filters.brigadeId ? { OR: [{ brigadeId: filters.brigadeId }, { assignee: { brigadeId: filters.brigadeId } }] } : {}),
     ...(req.user!.role === Role.EXECUTOR ? { assigneeId: req.user!.id } : {})
   };
+}
+
+const withOverdue = <T extends { deadline: Date; status: WorkOrderStatus }>(order: T, now = new Date()) => ({ ...order, isOverdue: order.deadline < now && OPEN_STATUSES.includes(order.status) });
+
+workOrdersRouter.get("/", asyncHandler(async (req, res) => {
+  const where = listWhere(req, listFilters.parse(req.query));
   const { limit, offset, compact } = z.object({
     limit: z.coerce.number().int().min(1).max(500).default(200),
     offset: z.coerce.number().int().min(0).default(0),
@@ -56,7 +89,43 @@ workOrdersRouter.get("/", asyncHandler(async (req, res) => {
     prisma.workOrder.count({ where })
   ]);
   res.setHeader("x-total-count", String(total));
-  res.json(orders);
+  const now = new Date();
+  res.json(orders.map((order) => withOverdue(order, now)));
+}));
+
+/**
+ * Master's kanban (5.2.2): issued, accepted, in progress, queued, completed, overdue — plus shift counters (5.2.4).
+ * An overdue order shows in its status column and in the overdue column.
+ */
+workOrdersRouter.get("/board", asyncHandler(async (req, res) => {
+  const filters = listFilters.omit({ status: true, overdue: true }).extend({ hours: z.coerce.number().positive().max(24 * 31).default(12) }).parse(req.query);
+  const where = listWhere(req, filters);
+  const since = new Date(Date.now() - filters.hours * 3_600_000);
+  const now = new Date();
+  const orders = await prisma.workOrder.findMany({
+    where: { AND: [where, { OR: [{ status: { in: OPEN_STATUSES } }, { status: { in: ["COMPLETED", "AI_REVIEW"] } }, { closedAt: { gte: since } }] }] },
+    include: listCompactInclude,
+    orderBy: [{ priority: "asc" }, { deadline: "asc" }, { id: "asc" }]
+  });
+  const cards = orders.map((order) => withOverdue(order, now));
+  const columns = {
+    issued: cards.filter((x) => x.status === "ISSUED"),
+    accepted: cards.filter((x) => x.status === "ACCEPTED"),
+    inProgress: cards.filter((x) => ["IN_PROGRESS", "PAUSED", "REWORK"].includes(x.status)),
+    queued: cards.filter((x) => x.status === "QUEUED"),
+    completed: cards.filter((x) => ["COMPLETED", "AI_REVIEW", "CLOSED"].includes(x.status)),
+    overdue: cards.filter((x) => x.isOverdue)
+  };
+  const [issuedInShift, completedInShift, equipmentInDowntime] = await Promise.all([
+    prisma.workOrder.count({ where: { AND: [where, { createdAt: { gte: since } }] } }),
+    prisma.workOrder.count({ where: { AND: [where, { completedAt: { gte: since } }] } }),
+    prisma.equipmentDowntime.findMany({ where: { endedAt: null, ...(filters.areaId ? { equipment: { areaId: filters.areaId } } : {}) }, distinct: ["equipmentId"], select: { equipmentId: true } })
+  ]);
+  res.json({
+    since,
+    counters: { issued: issuedInShift, completed: completedInShift, overdue: columns.overdue.length, equipmentInDowntime: equipmentInDowntime.length },
+    columns
+  });
 }));
 
 workOrdersRouter.get("/:id", asyncHandler(async (req, res) => {
@@ -66,7 +135,21 @@ workOrdersRouter.get("/:id", asyncHandler(async (req, res) => {
   });
   if (!order) throw new HttpError(404, "Наряд не найден");
   if (req.user!.role === Role.EXECUTOR && order.assigneeId !== req.user!.id) throw new HttpError(403, "Это не ваш наряд");
-  res.json(order);
+  res.json({ ...withOverdue(order), timing: orderTiming(order) });
+}));
+
+/** 6.4: the executor gets their own short report, staff get the full one. */
+workOrdersRouter.get("/:id/report", asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  if (req.user!.role === Role.EXECUTOR) {
+    const report = await executorOrderReport(id);
+    if (!report) throw new HttpError(404, "Наряд не найден");
+    if (report.assigneeId !== req.user!.id) throw new HttpError(403, "Это не ваш наряд");
+    return res.json({ audience: "EXECUTOR", ...report });
+  }
+  const report = await masterOrderReport(id);
+  if (!report) throw new HttpError(404, "Наряд не найден");
+  res.json({ audience: "MASTER", ...report });
 }));
 
 workOrdersRouter.post("/", allow(Role.MASTER, Role.ADMIN), asyncHandler(async (req, res) => {
@@ -75,22 +158,30 @@ workOrdersRouter.post("/", allow(Role.MASTER, Role.ADMIN), asyncHandler(async (r
     description: z.string().min(3),
     areaId: z.number().int().positive(),
     equipmentId: z.number().int().positive(),
-    assigneeId: z.number().int().positive(),
+    assigneeId: z.number().int().positive().optional(),
+    brigadeId: z.number().int().positive().optional(),
     deadline: z.coerce.date().optional(),
     priority: z.enum(["EMERGENCY", "HIGH", "NORMAL", "PLANNED"]),
     normativeId: z.number().int().positive().optional(),
     comment: z.string().optional(),
     beforePhotoUrls: z.array(z.string().transform(normalizePhotoUrl)).max(5).default([])
-  }).refine((value) => value.deadline || value.normativeId, { message: "Укажите срок или норматив" }).parse(req.body);
+  }).refine((value) => value.deadline || value.normativeId, { message: "Укажите срок или норматив" })
+    .refine((value) => value.assigneeId || value.brigadeId, { message: "Укажите исполнителя или бригаду" }).parse(req.body);
   const equipment = await prisma.equipment.findFirst({ where: { id: input.equipmentId, areaId: input.areaId } });
-  const assignee = await prisma.user.findFirst({ where: { id: input.assigneeId, role: Role.EXECUTOR } });
-  if (!equipment || !assignee) throw new HttpError(400, "Проверьте оборудование и исполнителя");
+  if (!equipment) throw new HttpError(400, "Проверьте оборудование и исполнителя");
+  if (input.brigadeId && !await prisma.brigade.findUnique({ where: { id: input.brigadeId } })) throw new HttpError(400, "Бригада не найдена");
+  // A brigade order goes to its best-suited member on shift, who leads it; the brigade stays on the order.
+  const assigneeId = input.assigneeId ?? (await recommendExecutors(input.equipmentId, { brigadeId: input.brigadeId, description: input.description }))[0]?.id;
+  if (!assigneeId) throw new HttpError(400, "В бригаде нет исполнителей на смене");
+  const assignee = await prisma.user.findFirst({ where: { id: assigneeId, role: Role.EXECUTOR } });
+  if (!assignee) throw new HttpError(400, "Проверьте оборудование и исполнителя");
+  if (input.brigadeId && assignee.brigadeId !== input.brigadeId) throw new HttpError(400, "Исполнитель не состоит в этой бригаде");
   const normative = input.normativeId ? await prisma.workNormative.findUnique({ where: { id: input.normativeId } }) : null;
   if (input.normativeId && !normative) throw new HttpError(400, "Норматив не найден");
   const deadline = input.deadline ?? new Date(Date.now() + Number(normative?.hours ?? 2) * 3_600_000);
   const number = `N-${Date.now().toString().slice(-8)}`;
   const { beforePhotoUrls, ...orderInput } = input;
-  const orderData = { ...orderInput, deadline };
+  const orderData = { ...orderInput, assigneeId, deadline };
   const order = await prisma.$transaction(async (tx) => {
     const created = await tx.workOrder.create({ data: {
       ...orderData,
@@ -102,8 +193,12 @@ workOrdersRouter.post("/", allow(Role.MASTER, Role.ADMIN), asyncHandler(async (r
     if (created.type === "EMERGENCY") await tx.equipmentDowntime.create({ data: { equipmentId: created.equipmentId, workOrderId: created.id, startedAt: created.createdAt, reason: created.description } });
     return created;
   });
-  await notify({ userId: input.assigneeId, workOrderId: order.id, type: "NEW_ORDER", title: `Новый наряд ${number}`, message: input.description, data: { priority: order.priority } });
-  await refreshEmployeeStatus(input.assigneeId);
+  await notify({ userId: assigneeId, workOrderId: order.id, type: "NEW_ORDER", title: `Новый наряд ${number}`, message: input.description, data: { priority: order.priority } });
+  if (input.brigadeId) {
+    const members = await prisma.user.findMany({ where: { brigadeId: input.brigadeId, isOnShift: true, id: { not: assigneeId } }, select: { id: true } });
+    for (const member of members) await notify({ userId: member.id, workOrderId: order.id, type: "BRIGADE_ORDER", title: `Наряд ${number} выдан бригаде`, message: `${input.description}. Старший: ${assignee.fullName}`, data: { priority: order.priority } });
+  }
+  await refreshEmployeeStatus(assigneeId);
   await enqueueWorkOrderSync(order.id, "CREATED");
   emitOrderChanged(order);
   res.status(201).json(order);
@@ -166,7 +261,7 @@ workOrdersRouter.post("/:id/action", asyncHandler(async (req, res) => {
           create: { workOrderId: id, ...review, verdict: input.masterScore >= 3 ? AiVerdict.ACCEPTED : AiVerdict.ACCEPTED_WITH_COMMENTS, score: input.masterScore, explanation: "Оценка мастера без AI-проверки" }
         });
       }
-      if (input.action === "CLOSE") await tx.equipmentDowntime.updateMany({ where: { workOrderId: id, endedAt: null }, data: { endedAt: now } });
+      if (input.action === "CLOSE" || input.action === "CANCEL") await tx.equipmentDowntime.updateMany({ where: { workOrderId: id, endedAt: null }, data: { endedAt: now } });
       await tx.workOrderEvent.create({ data: { workOrderId: id, actorId: req.user!.id, action: input.action, fromStatus: order.status, toStatus: target, comment: input.comment, clientActionId: input.clientActionId } });
       return tx.workOrder.findUniqueOrThrow({ where: { id }, include: orderInclude });
     });
@@ -186,6 +281,24 @@ workOrdersRouter.post("/:id/action", asyncHandler(async (req, res) => {
   emitOrderChanged(finalOrder);
   await enqueueWorkOrderSync(id, input.action);
   res.json({ order: finalOrder, assessment });
+}));
+
+/** A comment without a status change («ждём подшипник со склада»): the executor on their order, staff on any. */
+workOrdersRouter.post("/:id/comment", asyncHandler(async (req, res) => {
+  const { comment, clientActionId } = z.object({ comment: z.string().trim().min(1).max(2000), clientActionId: z.string().min(8).max(100).optional() }).parse(req.body);
+  const id = Number(req.params.id);
+  const order = await prisma.workOrder.findUnique({ where: { id } });
+  if (!order) throw new HttpError(404, "Наряд не найден");
+  if (req.user!.role === Role.EXECUTOR && order.assigneeId !== req.user!.id) throw new HttpError(403, "Это не ваш наряд");
+  if (clientActionId && await prisma.workOrderEvent.findUnique({ where: { clientActionId } })) return res.json({ order: await prisma.workOrder.findUniqueOrThrow({ where: { id }, include: orderInclude }), replayed: true });
+  try {
+    await prisma.workOrderEvent.create({ data: { workOrderId: id, actorId: req.user!.id, action: "COMMENT", fromStatus: order.status, toStatus: order.status, comment, clientActionId } });
+  } catch (error) {
+    if (!(clientActionId && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+  }
+  const updated = await prisma.workOrder.findUniqueOrThrow({ where: { id }, include: orderInclude });
+  emitOrderChanged(updated);
+  res.status(201).json({ order: updated });
 }));
 
 workOrdersRouter.patch("/:id", allow(Role.MASTER, Role.ADMIN), asyncHandler(async (req, res) => {
