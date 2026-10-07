@@ -1,5 +1,4 @@
 import "dotenv/config";
-import { randomInt } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { hashPassword } from "../src/lib/password.js";
 import { AiVerdict, EmployeeStatus, Prisma, Priority, PrismaClient, Role, WorkOrderStatus, WorkType } from "@prisma/client";
@@ -172,6 +171,13 @@ const EXECUTORS: Array<[string, string, number, number, boolean]> = [
 ];
 const WEAK_EXECUTOR = "Жумабаев Данияр Ерланович";
 
+const DEMO_PASSWORDS: Record<string, string> = {
+  master: "731013", manager: "748768", admin: "936624", master2: "230522",
+  worker1: "029580", worker2: "616514", worker3: "435198", worker4: "608245", worker5: "778010",
+  worker6: "798817", worker7: "008636", worker8: "563857", worker9: "036991", worker10: "976913",
+  worker11: "859643", worker12: "524646", worker13: "835042", worker14: "088212", worker15: "758888"
+};
+
 const STAFF: Array<[string, string, Role, string]> = [
   ["master", "+77000000001", Role.MASTER, "Нурланов Арман Болатович"],
   ["manager", "+77000000002", Role.MANAGER, "Исмаилов Тимур Кайратович"],
@@ -232,22 +238,23 @@ async function main() {
     normatives.set(`${type}:PPR`, { id: ppr.id, hours: 4 });
   }
 
-  // Users. Without SEED_PASSWORD every account gets its own random 6-digit password.
+  // Users. Demo passwords are fixed so every re-seed keeps the same logins (SEED_PASSWORD overrides all of them).
   const credentials: string[] = [];
-  const passwordFor = async () => {
-    const password = process.env.SEED_PASSWORD ?? String(randomInt(0, 1_000_000)).padStart(6, "0");
+  const passwordFor = async (login: string) => {
+    const password = process.env.SEED_PASSWORD ?? DEMO_PASSWORDS[login];
+    if (!password) throw new Error(`Нет демо-пароля для ${login}`);
     return { password, hash: await hashPassword(password) };
   };
   const staff = new Map<string, { id: number }>();
   for (const [login, phone, role, fullName] of STAFF) {
-    const { password, hash } = await passwordFor();
+    const { password, hash } = await passwordFor(login);
     staff.set(login, await prisma.user.create({ data: { login, phone, passwordHash: hash, fullName, role, isOnShift: true, employeeStatus: EmployeeStatus.AVAILABLE } }));
     credentials.push(`${phone}  ${password}  ${role.padEnd(8)}  ${login.padEnd(8)}  ${fullName}`);
   }
   const executors = new Map<string, { id: number; specialty: string; brigadeId: number; isOnShift: boolean }>();
   for (const [index, [fullName, specialty, grade, brigade, onShift]] of EXECUTORS.entries()) {
     const login = `worker${index + 1}`, phone = `+770000001${String(index + 1).padStart(2, "0")}`;
-    const { password, hash } = await passwordFor();
+    const { password, hash } = await passwordFor(login);
     const user = await prisma.user.create({ data: {
       login, phone, passwordHash: hash, fullName, role: Role.EXECUTOR, specialty, grade, brigadeId: brigades[brigade].id,
       isOnShift: onShift, employeeStatus: onShift ? EmployeeStatus.AVAILABLE : EmployeeStatus.OFF_SHIFT
@@ -482,7 +489,7 @@ async function main() {
   if (process.env.SEED_PASSWORD) console.log("Пароль всех демо-аккаунтов — из SEED_PASSWORD.");
   else {
     const file = process.env.SEED_CREDENTIALS_FILE ?? "demo-credentials.local.txt";
-    writeFileSync(file, ["# НарядAI — доступы демо-аккаунтов. Вход: POST /api/auth/login { phone, password }. Файл не коммитится.", "# телефон       пароль  роль      логин     имя", ...credentials, ""].join("\n"), { mode: 0o600 });
+    writeFileSync(file, ["# НарядAI — доступы демо-аккаунтов. Вход: POST /api/auth/login { phone, password }. Пароли фиксированы в prisma/seed.ts.", "# телефон       пароль  роль      логин     имя", ...credentials, ""].join("\n"), { mode: 0o600 });
     console.log(`Пароли записаны в ${file}`);
   }
 }

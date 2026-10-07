@@ -4,6 +4,7 @@ import { config } from "../config.js";
 import { prisma } from "../lib/prisma.js";
 import { askOllama } from "./ollama.js";
 import { analyzeOrderPhotos } from "./photo-analysis.js";
+import { recall, reviewText } from "./rag.js";
 
 type Review = z.infer<typeof reviewSchema>;
 
@@ -32,6 +33,16 @@ ACCEPTED — конкретные действия устраняют пробл
 Фото-оценка вторична: не принимай работу только из-за фото.
 Верни только JSON: verdict, score 1..5, explanation, strengths[], improvements[]. Не выдумывай факты.`;
 
+// Appended only when the RAG memory found similar decisions, so the base prompt stays the measured one.
+export const PRECEDENTS_PROMPT = `
+precedents — решения мастеров этого предприятия по похожим отчётам (similarity 0..1).
+Требования предприятия — только masterComment у прецедентов «ВОЗВРАЩЕНО НА ДОРАБОТКУ»: если в текущем отчёте нет того же (замер, проверка, испытание, марка материала), — REWORK_REQUIRED и назови это требование; если есть — этот прецедент не применяй.
+Прецеденты «ПРИНЯТО» лишь показывают допустимый отчёт и новых требований не создают: не возвращай отчёт только за то, что он короче или проще принятого.
+Прецеденты не отменяют критерии доработки выше.`;
+
+// A near-identical report the master decided the other way: the AI must not overrule the master alone.
+const STRONG_PRECEDENT = 0.9;
+
 // Safety bypasses must never depend on the LLM: the model caught "отключил защиту" in only 2 of 3 runs.
 const SAFETY_VIOLATION = /(отключ|обош|обход|замкн|перемкн|перемычк|шунтир|заблокир)\S*\s+(\S+\s+){0,2}(защит|блокировк|заземлен|концевик)|без\s+(заземлен|допуск|наряда-допуска)/i;
 
@@ -56,11 +67,14 @@ export async function reviewWorkOrder(workOrderId: number) {
 
   const safetyViolation = findSafetyViolation(order.completionText);
   const photoReview = await analyzeOrderPhotos(workOrderId);
+  const precedents = order.completionText?.trim()
+    ? await recall("REVIEW", reviewText(order.equipment.type, order.description, order.completionText), { exclude: workOrderId })
+    : [];
   let review: Review;
   let llmAvailable = true;
   try {
     review = reviewSchema.parse(await askOllama<unknown>(
-      REVIEW_PROMPT,
+      precedents.length ? REVIEW_PROMPT + PRECEDENTS_PROMPT : REVIEW_PROMPT,
       JSON.stringify({
         problem: order.description,
         completed: order.completionText,
@@ -72,7 +86,10 @@ export async function reviewWorkOrder(workOrderId: number) {
         normativeHours: order.normative ? Number(order.normative.hours) : null,
         actualHours: order.startedAt && order.completedAt ? (order.completedAt.getTime() - order.startedAt.getTime()) / 3_600_000 : null,
         materialWarnings,
-        missing
+        missing,
+        ...(precedents.length ? {
+          precedents: precedents.map((p) => ({ problem: p.problem, report: p.report, masterDecision: p.accepted ? "ПРИНЯТО" : "ВОЗВРАЩЕНО НА ДОРАБОТКУ", masterComment: p.masterComment, similarity: p.similarity }))
+        } : {})
       })
     ));
   } catch (error) {
@@ -105,14 +122,18 @@ export async function reviewWorkOrder(workOrderId: number) {
   }
   review.score = Math.max(1, Math.min(5, Math.round(review.score)));
   // 6.3.4: when the AI is unsure it flags the order for the master instead of deciding alone.
-  const needsMasterReview = !llmAvailable || Boolean(photoReview.suspicious) || Boolean(photoReview.lowConfidence);
+  const strong = precedents[0]?.similarity >= STRONG_PRECEDENT ? precedents[0] : undefined;
+  const contradictsMaster = Boolean(strong && strong.accepted !== (review.verdict !== AiVerdict.REWORK_REQUIRED));
+  if (contradictsMaster) review.explanation = `${review.explanation}. Почти такой же отчёт мастер ранее ${strong!.accepted ? "принял" : "вернул на доработку"}${strong!.masterComment ? `: «${strong!.masterComment}»` : ""}`;
+  const needsMasterReview = !llmAvailable || contradictsMaster || Boolean(photoReview.suspicious) || Boolean(photoReview.lowConfidence);
   if (needsMasterReview) review.explanation = `Нужна проверка мастером. ${review.explanation}`;
+  const rag = precedents.map((p) => ({ id: p.id, workOrderId: p.workOrderId, accepted: p.accepted, similarity: p.similarity }));
 
   return prisma.$transaction(async (tx) => {
     const assessment = await tx.aiAssessment.upsert({
       where: { workOrderId },
-      create: { workOrderId, ...review, needsMasterReview, confidence: photoReview.confidence, photoScore: photoReview.score, photoComment: photoReview.comment, rawResponse: { review, photoReview } },
-      update: { ...review, needsMasterReview, confidence: photoReview.confidence, photoScore: photoReview.score, photoComment: photoReview.comment, rawResponse: { review, photoReview } }
+      create: { workOrderId, ...review, needsMasterReview, confidence: photoReview.confidence, photoScore: photoReview.score, photoComment: photoReview.comment, ragPrecedents: rag.length, rawResponse: { review, photoReview, rag } },
+      update: { ...review, needsMasterReview, confidence: photoReview.confidence, photoScore: photoReview.score, photoComment: photoReview.comment, ragPrecedents: rag.length, rawResponse: { review, photoReview, rag } }
     });
     await tx.workOrder.update({ where: { id: workOrderId }, data: { status: WorkOrderStatus.AI_REVIEW } });
     await tx.workOrderEvent.create({

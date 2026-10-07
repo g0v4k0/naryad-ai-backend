@@ -10,6 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "rag:reindex": "tsx scripts/rag-reindex.ts",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "research:ai-review": "tsx research/r1-ai-review.ts && tsx research/r1b-prompt-ab.ts",
@@ -17,6 +18,7 @@
     "research:phash": "tsx research/r4-phash.ts",
     "research:load": "tsx research/r5-load.ts",
     "research:analytics": "tsx research/r6-analytics.ts",
+    "research:rag": "tsx research/r7-rag.ts",
     "research:charts": "research/.venv/bin/python research/charts.py"
   },
   "prisma": {

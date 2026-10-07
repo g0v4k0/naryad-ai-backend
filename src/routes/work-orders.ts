@@ -11,6 +11,7 @@ import { reviewWorkOrder } from "../services/ai-review.js";
 import { notify } from "../services/notifications.js";
 import { refreshEmployeeStatus } from "../services/employee-status.js";
 import { enqueueWorkOrderSync } from "../services/one-c.js";
+import { learnFromMasterDecision } from "../services/rag.js";
 import { executorOrderReport, masterOrderReport, orderTiming } from "../services/order-report.js";
 import { recommendExecutors } from "../services/recommendations.js";
 
@@ -278,6 +279,9 @@ workOrdersRouter.post("/:id/action", asyncHandler(async (req, res) => {
     assessment = await reviewWorkOrder(id);
     finalOrder = await prisma.workOrder.findUniqueOrThrow({ where: { id }, include: orderInclude });
   }
+  // Self-learning: the master's verdict becomes a precedent for the next similar report.
+  // Not awaited: a cold embedding model must not delay the master's response.
+  if (input.action === "CLOSE" || input.action === "SEND_TO_REWORK") void learnFromMasterDecision(id).catch((error) => console.error("RAG learn:", error));
   emitOrderChanged(finalOrder);
   await enqueueWorkOrderSync(id, input.action);
   res.json({ order: finalOrder, assessment });

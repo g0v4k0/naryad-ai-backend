@@ -276,7 +276,7 @@ docker exec naryad-ai-mysql-1 mysql -uroot -p$MYSQL_ROOT_PASSWORD -e "
   GRANT ALL ON naryad_test.* TO 'naryad'@'%'; GRANT ALL ON naryad_research.* TO 'naryad'@'%';"
 DATABASE_URL=mysql://naryad:$MYSQL_PASSWORD@127.0.0.1:3407/naryad_test     npx prisma migrate deploy
 DATABASE_URL=mysql://naryad:$MYSQL_PASSWORD@127.0.0.1:3407/naryad_research npx prisma migrate deploy
-DATABASE_URL=mysql://naryad:$MYSQL_PASSWORD@127.0.0.1:3407/naryad_research npm run db:seed
+SEED_CREDENTIALS_FILE=research/.work/credentials.txt DATABASE_URL=mysql://naryad:$MYSQL_PASSWORD@127.0.0.1:3407/naryad_research npm run db:seed  # не трогать прод-доступы
 
 npm run test:coverage
 

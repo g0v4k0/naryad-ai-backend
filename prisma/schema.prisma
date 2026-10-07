@@ -58,6 +58,13 @@ enum AiVerdict {
   REWORK_REQUIRED
 }
 
+enum KnowledgeKind {
+  /// Closure report with the master's decision on it: precedents for the AI review.
+  REVIEW
+  /// Problem description with the fault code, normative and hours it was closed with.
+  FAULT
+}
+
 enum IntegrationEntity {
   AREA
   EQUIPMENT
@@ -224,6 +231,7 @@ model WorkOrder {
   aiAssessment          AiAssessment?
   notifications         Notification[]
   downtime              EquipmentDowntime?
+  knowledge             KnowledgeCase[]
 
   @@index([status, deadline])
   @@index([assigneeId, status])
@@ -322,6 +330,8 @@ model AiAssessment {
   needsMasterReview Boolean   @default(false)
   photoScore        Int?
   photoComment      String?   @db.Text
+  /// How many master precedents from the RAG memory the review prompt received.
+  ragPrecedents     Int       @default(0)
   masterScore       Int?
   masterComment     String?   @db.Text
   reviewedById      Int?
@@ -400,4 +410,33 @@ model AssistantMessage {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+/// RAG memory: every master decision becomes a labelled example the LLM sees on similar cases.
+model KnowledgeCase {
+  id            Int           @id @default(autoincrement())
+  kind          KnowledgeKind
+  workOrderId   Int
+  textHash      String        @db.Char(40)
+  problem       String        @db.Text
+  report        String?       @db.Text
+  equipmentType String
+  /// Embedding model name; rows of another model are ignored until reindexed.
+  model         String
+  /// L2-normalized float32 vector.
+  embedding     Bytes
+  /// REVIEW: the master closed the order (true) or sent it to rework (false).
+  accepted      Boolean?
+  aiVerdict     AiVerdict?
+  masterScore   Int?
+  masterComment String?       @db.Text
+  faultCodeId   Int?
+  normativeId   Int?
+  actualHours   Float?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  workOrder     WorkOrder     @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([kind, workOrderId, textHash])
+  @@index([kind, updatedAt])
 }

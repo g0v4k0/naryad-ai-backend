@@ -230,5 +230,60 @@ ax.set_title("Рейтинг исполнителей на демо-данных
 ax.set_xlabel("балл рейтинга (0–100)")
 save(fig, "ratings.png")
 
+
+# ---------- R7 RAG self-learning ----------
+if os.path.exists(os.path.join(R, "r7-rag-review.json")):
+    rv = load("r7-rag-review.json")
+    stages = list(dict.fromkeys(r["stage"] for r in rv))
+    pct = lambda rows, f=lambda r: r["correct"]: round(100 * sum(1 for r in rows if f(r)) / len(rows), 1) if rows else None
+    r7 = {"stages": []}
+    for st_ in stages:
+        rows = [r for r in rv if r["stage"] == st_]
+        plant = [r for r in rows if r["group"] != "R1-контроль"]
+        # HG3/HG4 break plant rules P3/P5 (see r7-rag.ts): reported apart, not as control errors.
+        conflict = [r for r in rows if r["id"] in ("HG3", "HG4")]
+        ctrl = [r for r in rows if r["group"] == "R1-контроль" and r["id"] not in ("HG3", "HG4")]
+        r7["stages"].append({
+            "stage": st_, "memory": rows[0]["memory"],
+            "plantAccuracy": pct(plant), "plantBadCaught": pct([r for r in plant if not r["ok"]]), "plantGoodAccepted": pct([r for r in plant if r["ok"]]),
+            "controlAccuracy": pct(ctrl), "controlBadCaught": pct([r for r in ctrl if not r["ok"]]), "controlGoodAccepted": pct([r for r in ctrl if r["ok"]]),
+            "conflictReworked": pct(conflict, lambda r: not r["accepted"]),
+            "withPrecedents": pct(rows, lambda r: r["precedents"] > 0),
+            "topIsSameRule": pct([r for r in plant if r["topRule"]], lambda r: r["topRule"] == r["group"]),
+            "needsMasterReview": pct(rows, lambda r: r["needsMasterReview"]),
+            "msMedian": st.median(r["ms"] for r in rows),
+            "byRule": {g: pct([r for r in plant if r["group"] == g]) for g in dict.fromkeys(r["group"] for r in plant)},
+        })
+    summary["r7"] = r7
+    xs = range(len(stages))
+    labels = [s_.replace(" решения мастера на правило", "\nрешения на правило").replace("история завода", "история\nзавода").replace("без памяти", "без\nпамяти") for s_ in stages]
+    fig, ax = plt.subplots(figsize=(8, 4.2))
+    for key, name, c in [("plantAccuracy", "Заводские правила: верные вердикты", S1), ("plantBadCaught", "Заводские правила: найдено плохих", S2), ("controlAccuracy", "Общие критерии (R1, контроль): верные", S3)]:
+        ys = [x[key] for x in r7["stages"]]
+        ax.plot(xs, ys, marker="o", color=c, linewidth=2, label=name)
+        for x, y in zip(xs, ys): ax.text(x, y + 2.5, f"{y:.0f}%", ha="center", fontsize=8, color=c)
+    ax.set_xticks(list(xs), labels, fontsize=8); ax.set_ylim(0, 110); ax.set_ylabel("%")
+    ax.set_title("Самообучение AI-проверки через RAG-память")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, fontsize=8)
+    save(fig, "rag-learning-curve.png")
+    rules = list(r7["stages"][0]["byRule"])
+    fig, ax = plt.subplots(figsize=(8, 3.8))
+    hbars(ax, rules, [[r7["stages"][0]["byRule"][g] for g in rules], [r7["stages"][-1]["byRule"][g] for g in rules]],
+          ["без памяти", stages[-1]], [S2, S1], fmt="{:.0f}%", xmax=115)
+    ax.set_title("Верные вердикты по заводским правилам")
+    ax.set_xlabel("% верных вердиктов")
+    save(fig, "rag-by-rule.png")
+if os.path.exists(os.path.join(R, "r7-rag-fault.json")):
+    fr = load("r7-rag-fault.json")
+    conds = list(dict.fromkeys(r["condition"] for r in fr))
+    acc = {c: round(100 * sum(r["correct"] for r in fr if r["condition"] == c) / sum(1 for r in fr if r["condition"] == c), 1) for c in conds}
+    summary.setdefault("r7", {})["fault"] = {"cases": len({r["description"] for r in fr}), "accuracy": acc,
+        "msMedian": {c: st.median(r["ms"] for r in fr if r["condition"] == c) for c in conds}}
+    fig, ax = plt.subplots(figsize=(8, 2.6))
+    hbars(ax, conds, [[acc[c] for c in conds]], ["% верных шифров"], [S1], fmt="{:.1f}%", xmax=110)
+    ax.set_title(f"Подбор шифра неисправности по описанию ({len({r['description'] for r in fr})} новых описаний)")
+    ax.set_xlabel("% верных шифров")
+    save(fig, "rag-fault.png")
+
 json.dump(summary, open(os.path.join(R, "summary.json"), "w"), ensure_ascii=False, indent=1, default=str)
 print(json.dumps({k: v for k, v in summary.items() if k not in ("r5",)}, ensure_ascii=False, indent=1, default=str)[:6000])

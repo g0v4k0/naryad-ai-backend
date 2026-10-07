@@ -20,6 +20,8 @@ Object.assign(process.env, {
   OLLAMA_URL: mocks.ollama.url,
   OLLAMA_MODEL: "test-model",
   OLLAMA_VISION_MODEL: "",
+  // RAG is switched on per test (test/integration/rag.test.ts) so other suites see only chat calls.
+  OLLAMA_EMBED_MODEL: "",
   WHISPER_URL: `${mocks.whisper.url}/transcribe`,
   AI_STRICT: "false",
   PUBLIC_APP_URL: "http://naryad.test",

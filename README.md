@@ -7,7 +7,7 @@
 | | |
 |---|---|
 | Стек | Node.js 22, TypeScript, Express 5, Prisma 6, MySQL 8.4, Socket.IO 4, Zod 4 |
-| AI | Ollama `gpt-oss:20b` (текст), `gemma4:e4b` (фото), Whisper large-v3 (голос) |
+| AI | Ollama `gpt-oss:20b` (текст), `gemma4:e4b` (фото), `bge-m3` (эмбеддинги RAG-памяти), Whisper large-v3 (голос) |
 | Уведомления | БД + Socket.IO + Firebase Cloud Messaging |
 | Отчёты | PDF (PDFKit), Excel (ExcelJS) |
 | Интеграция | 1С / ERP / ТОиР: двусторонний обмен с очередью и повторами |
@@ -58,7 +58,7 @@ flowchart LR
   W[Веб-панель<br/>руководитель / админ] -- REST + JWT --> API
   M <-- Socket.IO --> API
   API[(Express API)] --> DB[(MySQL)]
-  API --> O[Ollama<br/>gpt-oss:20b · gemma4:e4b]
+  API --> O[Ollama<br/>gpt-oss:20b · gemma4:e4b · bge-m3]
   API --> WH[Whisper large-v3]
   API --> FCM[Firebase FCM]
   API <-- очередь с ретраями --> C1[1С / ERP]
@@ -199,12 +199,15 @@ flowchart TD
   A[COMPLETE] --> B[Обязательные поля]
   B --> C[Материалы против нормы]
   C --> D[Анализ фото]
-  D --> E{gpt-oss:20b}
+  D --> R[(RAG-память:<br/>похожие решения мастеров)]
+  R --> E{gpt-oss:20b}
   E -- ответ --> V[Проверка ответа схемой]
   E -- недоступна --> G[Детерминированный вердикт]
   V --> H[Пост-правила]
   G --> H
   H --> I[Вердикт + балл 1–5 + объяснение → мастер]
+  I --> M{Мастер: CLOSE / SEND_TO_REWORK}
+  M -- решение + причина --> R
 ```
 
 **Пост-правила:**
@@ -243,7 +246,39 @@ flowchart TD
 ### Рекомендации
 
 - **Исполнитель:** сначала нужной специальности (из шифра или описания проблемы: «течь масла» — слесарь, «двигатель» — электрик), внутри — `доступность (50 / 20 / 0) + 8 × рейтинг на этом типе оборудования − 3 × очередь`.
-- **Шифр и норматив по описанию проблемы:** LLM выбирает только из справочника.
+- **Шифр и норматив по описанию проблемы:** LLM выбирает только из справочника; из RAG-памяти получает похожие закрытые наряды предприятия с их шифрами (`basedOn` — сколько). Без LLM шифр выбирает голосование похожих нарядов.
+
+### RAG-память: самообучение на решениях мастера
+
+Модель не дообучается — **дообучается её контекст**. Каждое решение мастера становится размеченным примером, и следующий похожий случай модель видит уже вместе с ним.
+
+```mermaid
+flowchart LR
+  subgraph Обучение
+    M[Мастер: CLOSE / SEND_TO_REWORK + причина] --> L[learnFromMasterDecision]
+    L --> EM[bge-m3: вектор 1024]
+    EM --> KC[(KnowledgeCase<br/>MySQL)]
+  end
+  subgraph Применение
+    N[Новый отчёт / описание] --> Q[bge-m3]
+    Q --> S[Косинус ≥ 0.6, top-4,<br/>свой наряд исключён]
+    KC --> S
+    S --> P[precedents в промпт<br/>+ правило «требования мастера»]
+    P --> LLM{gpt-oss:20b}
+    LLM --> H[Пост-правила]
+  end
+```
+
+| Что запоминается | Когда | Как используется |
+|---|---|---|
+| Отчёт + решение мастера (принят / возвращён) + **причина возврата** + вердикт ИИ | `CLOSE`, `SEND_TO_REWORK` | AI-проверка: до 4 похожих решений в промпте как `precedents` |
+| Описание проблемы + шифр, норматив, фактические часы | `CLOSE` | подбор шифра: `similarOrders` в промпте, голосование без LLM |
+
+- **Без отдельной векторной БД.** Векторы (float32, нормированы) лежат в MySQL рядом с нарядами; поиск — скалярное произведение в памяти, кеш перечитывается только при изменении таблицы. Тысячи решений в год ищутся за миллисекунды.
+- **Модель не может «разучиться» обязательному.** Прецеденты идут в LLM, а жёсткие пост-правила (поля, безопасность, фото) работают после неё.
+- **Спор с мастером → мастеру.** Если почти такой же отчёт (сходство ≥ 0.9) мастер решил иначе, чем ИИ сейчас, наряд помечается `needsMasterReview`.
+- **Без эмбеддингов ничего не ломается**: сбой `bge-m3` → проверка идёт с базовым промптом.
+- **Наблюдаемость.** `GET /api/ai/knowledge/stats` — размер памяти и доля совпадений ИИ с мастером по месяцам (кривая обучения в проде), доля проверок с прецедентами. `POST /api/ai/knowledge/reindex` или `npm run rag:reindex` — пересборка из истории (например, после смены модели эмбеддингов).
 
 ---
 
@@ -290,7 +325,7 @@ flowchart TD
 | Фото | подписанные ссылки (HMAC, 7 дней) или Bearer; без подписи — 401 |
 | AI | модель не пишет SQL и не может обойти обязательные правила; ответы проверяются схемой |
 | 1С | отдельный ключ, сравнение за постоянное время |
-| Демо-доступ на сервере | случайные пароли в `demo-credentials.local.txt` (права 600, не в git) |
+| Демо-доступ на сервере | фиксированные пароли (`DEMO_PASSWORDS` в `prisma/seed.ts`), список в `demo-credentials.local.txt` |
 
 ---
 
@@ -467,7 +502,7 @@ Compose запускает MySQL, API и Ollama и загружает `gpt-oss:2
 npm install
 npx prisma generate
 npx prisma migrate deploy
-npm run db:seed          # ⚠ стирает данные; без SEED_PASSWORD пароли случайные → demo-credentials.local.txt
+npm run db:seed          # ⚠ стирает данные; пароли фиксированные (SEED_PASSWORD — один на всех) → demo-credentials.local.txt
 npm run dev
 ```
 
@@ -493,6 +528,8 @@ npm run research:charts     # пересобрать графики из researc
 | `DATABASE_URL`, `JWT_SECRET` | — | БД и секрет JWT |
 | `OLLAMA_URL`, `OLLAMA_MODEL` | `localhost:11434`, `gpt-oss:20b` | текстовая модель |
 | `OLLAMA_VISION_MODEL` | пусто | модель для фото (на сервере `gemma4:e4b`) |
+| `OLLAMA_EMBED_MODEL` | `bge-m3:567m` | эмбеддинги RAG-памяти; пусто — память выключена |
+| `RAG_TOP_K`, `RAG_MIN_SIMILARITY` | 4, 0.6 | сколько похожих решений и с каким сходством передавать в промпт |
 | `WHISPER_URL`, `WHISPER_PROMPT` | —, глоссарий | распознавание речи и словарь терминов (передаётся сервисам, которые его поддерживают) |
 | `AI_STRICT` | `false` | `true` — сбой модели делает действие неуспешным |
 | `DEADLINE_REMINDER_MINUTES`, `OVERDUE_REPEAT_MINUTES`, `LONG_OVERDUE_MINUTES` | 30, 30, 120 | контроль сроков |
@@ -512,6 +549,7 @@ npm run research:charts     # пересобрать графики из researc
 | Вход | `POST /api/auth/login`, `GET /api/auth/me` |
 | Наряды | `GET /api/work-orders?status,priority,type,areaId,equipmentId,assigneeId,brigadeId,overdue,limit,offset,compact`, `GET /api/work-orders/board`, `POST /api/work-orders`, `GET`/`PATCH /api/work-orders/:id`, `GET /api/work-orders/:id/report`, `POST /api/work-orders/:id/action`, `POST /api/work-orders/:id/comment`, `POST /api/work-orders/:id/reassign` |
 | Файлы и голос | `POST /api/uploads`, `POST /api/ai/transcribe` |
+| RAG-память | `GET /api/ai/knowledge/stats`, `POST /api/ai/knowledge/reindex` |
 | Справочники | `GET /api/references/areas \| equipment \| fault-codes \| materials \| brigades \| normatives \| executors` |
 | Оборудование | `GET /api/equipment/:id/qr.png`, `GET /api/equipment/qr/:token`, `GET /api/equipment/:id/history` |
 | AI | `GET /api/recommendations/executors?equipmentId,description,faultCodeId,specialty,brigadeId`, `POST /api/recommendations/work`, `POST /api/assistant/chat`, `GET /api/assistant/history` |

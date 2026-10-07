@@ -11,6 +11,10 @@ const schema = z.object({
   // Domain glossary passed as Whisper's initial prompt; empty string disables it.
   WHISPER_PROMPT: z.string().default("Наряд на ремонт оборудования горно-обогатительного комбината. Подшипник, сальник, сальниковая набивка, грундбукса, редуктор, сапун, муфта, центровка, футеровка, плиты футеровки, дробилка, конусная дробилка, щековая дробилка, конвейер, лента, роликоопора, натяжной барабан, приводной барабан, вулканизация стыка, грохот, питатель, шаровая мельница, гидроциклон, сгуститель, зумпф, пульпопровод, задвижка, насос, электродвигатель, пускатель, концевик, мегаомметр, амортизатор, анкерные болты, РВД, гидросистема, ППР, наряд-допуск, заземление, вибрация."),
   OLLAMA_VISION_MODEL: z.string().default(""),
+  // RAG memory of master decisions (src/services/rag.ts); empty string disables it.
+  OLLAMA_EMBED_MODEL: z.string().default("bge-m3:567m"),
+  RAG_TOP_K: z.coerce.number().int().min(1).max(10).default(4),
+  RAG_MIN_SIMILARITY: z.coerce.number().min(0).max(1).default(0.6),
   AI_STRICT: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
   DEADLINE_REMINDER_MINUTES: z.coerce.number().int().positive().default(30),
   OVERDUE_REPEAT_MINUTES: z.coerce.number().int().positive().default(30),

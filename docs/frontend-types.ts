@@ -70,6 +70,8 @@ export interface AiAssessment {
   confidence: number | null; photoScore: number | null; photoComment: string | null;
   /** The AI is not sure: show «Нужна проверка мастером», the verdict is only a hint. */
   needsMasterReview: boolean;
+  /** How many past master decisions on similar reports the AI was shown (RAG memory). */
+  ragPrecedents: number;
   masterScore: number | null; masterComment: string | null; reviewedById: number | null;
   /** Internal model output; do not render. */
   rawResponse?: unknown;
@@ -229,7 +231,22 @@ export interface ExecutorRecommendation {
   specialtyMatch: boolean | null; requiredSpecialty: string | null;
 }
 export interface WorkRecommendationRequest { description: string; equipmentId: number }
-export interface WorkRecommendation { faultCodeId: number | null; normativeId: number | null; estimatedHours: number; explanation: string }
+export interface WorkRecommendation {
+  faultCodeId: number | null; normativeId: number | null; estimatedHours: number; explanation: string;
+  /** Similar closed orders of this plant the suggestion is based on (0 — reference lists only). */
+  basedOn: number;
+}
+/** GET /api/ai/knowledge/stats — RAG memory and how often the AI agrees with the masters. */
+export interface KnowledgeStats {
+  enabled: boolean; model: string | null;
+  cases: { review: number; fault: number };
+  /** Share of master decisions that matched the AI verdict (accept vs rework), %. */
+  masterAgreementPct: number | null;
+  masterOverrides: number;
+  byMonth: Array<{ month: string; decisions: number; agreementPct: number | null }>;
+  reviewsLast30Days: number;
+  reviewsWithPrecedentsPct: number | null;
+}
 
 export type AssistantIntentName = "FREE_EXECUTORS" | "OVERDUE" | "EQUIPMENT_HISTORY" | "SHIFT_REPORT" | "ANOMALIES" | "FAILURE_FORECAST";
 export interface AssistantResponse {

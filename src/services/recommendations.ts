@@ -1,6 +1,7 @@
 import { Role } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { askOllama } from "./ollama.js";
+import { faultText, recall } from "./rag.js";
 
 const ACTIVE_STATUSES = ["ISSUED", "ACCEPTED", "QUEUED", "IN_PROGRESS", "PAUSED", "REWORK"] as const;
 
@@ -50,14 +51,21 @@ export async function recommendExecutors(equipmentId: number, hints: ExecutorHin
 
 export async function suggestFaultAndNormative(description: string, equipmentId: number) {
   const equipment = await prisma.equipment.findUniqueOrThrow({ where: { id: equipmentId } });
-  const [codes, norms] = await Promise.all([
+  const [codes, norms, similar] = await Promise.all([
     prisma.faultCode.findMany(),
-    prisma.workNormative.findMany({ where: { OR: [{ equipmentId }, { equipmentType: equipment.type }] } })
+    prisma.workNormative.findMany({ where: { OR: [{ equipmentId }, { equipmentType: equipment.type }] } }),
+    recall("FAULT", faultText(equipment.type, description))
   ]);
+  // How the plant actually closed similar problems (RAG memory); only codes that still exist.
+  const similarOrders = similar.filter((x) => codes.some((c) => c.id === x.faultCodeId)).map((x) => ({
+    problem: x.problem, equipmentType: x.equipmentType, faultCodeId: x.faultCodeId, normativeId: x.normativeId, actualHours: x.actualHours, similarity: x.similarity
+  }));
+  const basedOn = similarOrders.length;
   try {
     const raw = await askOllama<{ faultCodeId?: unknown; normativeId?: unknown; estimatedHours?: unknown; explanation?: unknown }>(
-      "Выбери только из переданных идентификаторов. Верни JSON faultCodeId, normativeId, estimatedHours, explanation.",
-      JSON.stringify({ description, equipment, faultCodes: codes, normatives: norms })
+      "Выбери только из переданных идентификаторов. Верни JSON faultCodeId, normativeId, estimatedHours, explanation."
+        + (basedOn ? " similarOrders — как на этом предприятии закрыли похожие наряды: если проблема та же, предпочти их шифр." : ""),
+      JSON.stringify({ description, equipment, faultCodes: codes, normatives: norms, ...(basedOn ? { similarOrders } : {}) })
     );
     // Never hand the client an id that is not in the reference lists.
     const faultCodeId = codes.some((x) => x.id === raw.faultCodeId) ? raw.faultCodeId as number : null;
@@ -67,9 +75,18 @@ export async function suggestFaultAndNormative(description: string, equipmentId:
       faultCodeId,
       normativeId: normative?.id ?? null,
       estimatedHours: Number.isFinite(hours) && hours > 0 ? hours : Number(normative?.hours ?? norms[0]?.hours ?? 2),
-      explanation: typeof raw.explanation === "string" ? raw.explanation : "Рекомендация по справочнику"
+      explanation: typeof raw.explanation === "string" ? raw.explanation : "Рекомендация по справочнику",
+      basedOn
     };
   } catch {
-    return { faultCodeId: codes[0]?.id ?? null, normativeId: norms[0]?.id ?? null, estimatedHours: Number(norms[0]?.hours ?? 2), explanation: "Базовая рекомендация по справочнику" };
+    if (basedOn) {
+      // Without the LLM: similarity-weighted vote of the nearest closed orders.
+      const votes = new Map<number, number>();
+      for (const x of similarOrders) votes.set(x.faultCodeId!, (votes.get(x.faultCodeId!) ?? 0) + x.similarity);
+      const faultCodeId = [...votes].sort((a, b) => b[1] - a[1])[0][0];
+      const normative = norms.find((x) => x.faultCodeId === faultCodeId) ?? norms.find((x) => x.id === similarOrders.find((o) => o.faultCodeId === faultCodeId)?.normativeId);
+      return { faultCodeId, normativeId: normative?.id ?? null, estimatedHours: Number(normative?.hours ?? norms[0]?.hours ?? 2), explanation: "По похожим закрытым нарядам предприятия", basedOn };
+    }
+    return { faultCodeId: codes[0]?.id ?? null, normativeId: norms[0]?.id ?? null, estimatedHours: Number(norms[0]?.hours ?? 2), explanation: "Базовая рекомендация по справочнику", basedOn };
   }
 }
