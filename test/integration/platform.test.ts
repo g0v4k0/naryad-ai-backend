@@ -96,7 +96,8 @@ describe("файлы и голос", () => {
     expect((await request(app).get(plain)).status).toBe(401);
     expect((await request(app).get(signed)).status).toBe(200);
     expect((await request(app).get(plain).set(bearer(base.worker2))).status).toBe(200);
-    expect((await request(app).get(signed.replace(/sig=./, "sig=X"))).status).toBe(401);
+    // Corrupt the signature with a character it surely did not have in that position.
+    expect((await request(app).get(signed.replace(/sig=(.)/, (_, c: string) => `sig=${c === "X" ? "Y" : "X"}`))).status).toBe(401);
     const other = (await request(app).post("/api/uploads").set(bearer(base.worker1)).attach("file", await scene(3), "q.jpg")).body.url.split("?")[0];
     expect((await request(app).get(other + signed.slice(signed.indexOf("?")))).status).toBe(401); // подпись привязана к файлу
     expect((await request(app).get(`${plain}?exp=${Math.floor(Date.now() / 1000) - 10}&sig=abc`)).status).toBe(401);

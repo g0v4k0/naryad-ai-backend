@@ -9,7 +9,7 @@ import { AiVerdict, EmployeeStatus, Prisma, Priority, PrismaClient, Role, WorkOr
  * 21 fault codes, 40 materials, normatives and 90 days of history (500+ orders) with planted patterns:
  *  1. Конвейер К-3 breaks ~3× more often than the rest, mostly with М-02 (bearing) — frequent + repeated fault;
  *  2. Жумабаев Д. — after his repairs the same fault returns within 7 days — executor repeat failures;
- *  3. Насос ГрАТ 1400/40 fails within days after every planned maintenance — quality of ППР;
+ *  3. Насос ГрАТ 1400/40 fails 4 times within days after every planned maintenance — quality of ППР;
  *  4. Мельница МШЦ-4500 — liner bolts written off far above the usual — material anomaly;
  *  5. Most breakdowns happen at night, peak 00:00–06:00 — shift / time-of-day dependency.
  * Plus a live shift for the demo: orders in progress, one overdue with a comment, free fitters on shift.
@@ -285,7 +285,7 @@ async function main() {
       drafts.push({ number: `Н-${String(++seq).padStart(5, "0")}`, type: WorkType.PLANNED, priority: Priority.PLANNED, equipment: index, fault: null, createdAt,
         executor: pick(bySpecialty("Слесарь")), description: `Плановое ТО (ППР): ${EQUIPMENT[index][0]}`, status: WorkOrderStatus.CLOSED, master: pick(masters) });
       // Pattern 3: the pump fails 1–4 days after each planned maintenance.
-      if (index === PUMP) for (let i = 0; i < 3; i++) {
+      if (index === PUMP) for (let i = 0; i < 4; i++) {
         const failedAt = atLocal(now, Math.round((now - createdAt) / DAY) - 1 - Math.floor(rnd() * 4), breakdownHour());
         if (failedAt < now - 1.5 * DAY) addFailure(index, failedAt, TYPE_FAULTS[type][(pumpFaults++) % TYPE_FAULTS[type].length]);
       }

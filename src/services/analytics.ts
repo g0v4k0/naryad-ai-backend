@@ -28,6 +28,22 @@ type Insight = { type: string; title: string; description: string; recommendatio
 
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 
+/** P(X ≥ k) for X ~ Binomial(n, p): how likely this many repeats are by chance at the others' rate. */
+export function binomialTail(n: number, k: number, p: number) {
+  if (k <= 0) return 1;
+  if (p <= 0) return 0;
+  if (p >= 1) return 1;
+  let term = Math.pow(1 - p, n); // P(X = 0)
+  let below = 0;
+  for (let i = 0; i < k; i++) {
+    below += term;
+    term = term * (n - i) / (i + 1) * p / (1 - p);
+  }
+  return Math.max(0, 1 - below);
+}
+/** Repeat-failure findings must be unlikely by chance: small samples are noise. */
+const SIGNIFICANCE = 0.01;
+
 /** Breakdowns tied to the shift, time of day, executor or brigade (6.5). */
 async function correlationInsights(orders: Array<{ id: number; type: string; createdAt: Date; equipmentId: number; faultCodeId: number | null; closedAt: Date | null; assigneeId: number; brigadeId: number | null }>, areaId: number | null) {
   const insights: Insight[] = [];
@@ -81,7 +97,7 @@ async function correlationInsights(orders: Array<{ id: number; type: string; cre
   const executors = await prisma.user.findMany({ where: { id: { in: [...byExecutor.keys()] } }, select: { id: true, fullName: true } });
   for (const [executorId, stat] of byExecutor) {
     const rate = stat.repeats / stat.closed, rest = restRate(stat);
-    if (stat.repeats >= 3 && rate >= Math.max(0.25, 2 * rest)) insights.push({
+    if (stat.repeats >= 3 && rate >= Math.max(0.25, 2 * rest) && binomialTail(stat.closed, stat.repeats, rest) < SIGNIFICANCE) insights.push({
       type: "EXECUTOR_REPEAT_FAILURES",
       title: `${executors.find((x) => x.id === executorId)?.fullName ?? `Исполнитель ${executorId}`}: повторные отказы после ремонта`,
       description: `После ${stat.repeats} из ${stat.closed} его ремонтов (${percent(rate)}) та же неисправность возвращалась в течение ${REPEAT_WINDOW_DAYS} дней; у остальных — ${percent(rest)}`,
@@ -95,7 +111,7 @@ async function correlationInsights(orders: Array<{ id: number; type: string; cre
   const brigades = await prisma.brigade.findMany({ where: { id: { in: [...byBrigade.keys()] } }, select: { id: true, name: true } });
   if (byBrigade.size >= 2) for (const [brigadeId, stat] of byBrigade) {
     const rate = stat.repeats / stat.closed, rest = restRate(stat);
-    if (stat.repeats >= 3 && rate >= Math.max(0.2, 1.5 * rest)) insights.push({
+    if (stat.repeats >= 3 && rate >= Math.max(0.2, 1.5 * rest) && binomialTail(stat.closed, stat.repeats, rest) < SIGNIFICANCE) insights.push({
       type: "BRIGADE_REPEAT_FAILURES",
       title: `${brigades.find((x) => x.id === brigadeId)?.name ?? `Бригада ${brigadeId}`}: повторные отказы выше, чем у других`,
       description: `${percent(rate)} ремонтов бригады заканчиваются повторной поломкой в течение ${REPEAT_WINDOW_DAYS} дней; у остальных бригад — ${percent(rest)}`,

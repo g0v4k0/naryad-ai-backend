@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { exifCaptureTime } from "../../src/lib/exif.js";
+import { binomialTail } from "../../src/services/analytics.js";
 import { exifWallTime, formatDuration, formatLocal, fromLocalWallTime, localHour, shiftOf } from "../../src/lib/time.js";
 
 const plain = () => sharp({ create: { width: 8, height: 8, channels: 3, background: "#c00" } }).jpeg().toBuffer();
@@ -40,5 +41,17 @@ describe("EXIF: время съёмки", () => {
     expect(exifCaptureTime(Buffer.from("Exif\0\0garbage-garbage"))).toBeNull();
     const bad = await sharp(await plain()).withExif({ IFD0: { DateTime: "0000:00:00 00:00:00" } }).jpeg().toBuffer();
     expect(exifCaptureTime(await exifOf(bad))).toBeNull();
+  });
+});
+
+describe("биномиальный хвост для повторных отказов", () => {
+  it("совпадает с точным расчётом и краевыми случаями", () => {
+    expect(binomialTail(4, 2, 0.5)).toBeCloseTo(11 / 16, 10);
+    expect(binomialTail(10, 0, 0.3)).toBe(1);
+    expect(binomialTail(4, 4, 0)).toBe(0);
+    expect(binomialTail(4, 1, 1)).toBe(1);
+    // 7 повторов из 15 при 23% у остальных — случайность; 33 из 62 при 20% — нет
+    expect(binomialTail(15, 7, 0.23)).toBeGreaterThan(0.01);
+    expect(binomialTail(62, 33, 0.2)).toBeLessThan(1e-6);
   });
 });
