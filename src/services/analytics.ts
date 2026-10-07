@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { localHour, shiftOf } from "../lib/time.js";
+import { normalizeAnswer, rejectReason } from "./ai-text.js";
 import { askOllama } from "./ollama.js";
 
 export const REPEAT_WINDOW_DAYS = 7;
@@ -268,12 +269,55 @@ export async function predictFailures(days = 30) {
   }).filter((x) => x.recentFailures > 0).sort((a, b) => b.probability - a.probability);
 }
 
-export async function summarizeInsights(insights: unknown) {
-  try {
-    const raw = await askOllama<{ summary?: unknown; recommendations?: unknown }>("Сделай краткий производственный вывод на русском. Верни JSON: summary — строка, recommendations — массив строк.", JSON.stringify(insights));
-    if (typeof raw.summary !== "string" || !raw.summary.trim()) throw new Error("Пустая сводка");
-    return { summary: raw.summary, recommendations: Array.isArray(raw.recommendations) ? raw.recommendations.map(String) : [] };
-  } catch {
-    return { summary: "Выявлены проблемные единицы оборудования; требуется проверка мастером.", recommendations: ["Проверить оборудование с максимальной частотой отказов"] };
+type InsightLike = { title: string; description: string; recommendation: string; severity?: number };
+
+/** The object a finding is about: «Конвейер К-3: повторяющийся шифр М-02» → «Конвейер К-3». */
+const subjectOf = (title: string) => (title.includes(":") ? title.slice(0, title.indexOf(":")) : title).toLowerCase();
+
+/** The model sometimes wraps the answer: {"data": [{"summary": …}]}. */
+function unwrap(raw: unknown): { summary?: unknown; recommendations?: unknown } {
+  const value = raw as { data?: unknown; summary?: unknown };
+  if (value && value.summary === undefined && Array.isArray(value.data) && value.data[0] && typeof value.data[0] === "object") return value.data[0] as { summary?: unknown };
+  return (value ?? {}) as { summary?: unknown };
+}
+
+/**
+ * AI summary of found patterns. Every number is checked against the findings and the summary must cover
+ * the most important ones; otherwise an exact summary built from the findings is used.
+ */
+export async function summarizeInsights(insights: InsightLike[]) {
+  const ranked = [...insights].sort((a, b) => (b.severity ?? 0) - (a.severity ?? 0));
+  const facts = ranked.map((x) => ({ важность: x.severity ?? null, вывод: x.title, факты: x.description, рекомендация: x.recommendation }));
+  const fallback = insights.length
+    ? { summary: `Найдено закономерностей: ${insights.length}. ${ranked.map((x) => `${x.title} — ${x.description}`).join("; ")}.`, recommendations: ranked.map((x) => `${x.title}: ${x.recommendation}`) }
+    : { summary: "Аномалий за период не найдено.", recommendations: [] };
+  if (!insights.length) return fallback;
+  // Distinct objects among the most important findings that the summary has to name.
+  const mustCover = [...new Set(ranked.map((x) => subjectOf(x.title)))].slice(0, 3);
+  const system = `Ты аналитик ремонтной службы горно-обогатительного предприятия. Отвечай на русском.
+По FACTS напиши вывод для руководителя: 3–5 предложений, по одному на самые важные выводы (начни с наибольшей важности), и 3–6 конкретных рекомендаций.
+Правила:
+- каждый вывод из FACTS описывай отдельно и только про тот объект (оборудование, исполнителя, бригаду, смену), который в нём назван; не объединяй разные выводы и не обобщай на другое оборудование;
+- называй оборудование и людей точно как в FACTS;
+- используй только числа из FACTS, называй их точно (без «более», «около»), ничего не вычисляй;
+- не упоминай идентификаторы и JSON.
+Верни только JSON вида {"summary": "одна строка текста", "recommendations": ["текст", "..."]}.`;
+  let feedback = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const raw = unwrap(await askOllama<unknown>(system, JSON.stringify({ FACTS: facts }) + feedback));
+      const summary = typeof raw.summary === "string" ? normalizeAnswer(raw.summary) : "";
+      const missed = mustCover.filter((subject) => !summary.toLowerCase().includes(subject));
+      const reason = rejectReason(summary, facts, "ru", true) ?? (missed.length ? `не упомянуты важные выводы: ${missed.join(", ")}` : null);
+      if (reason) { feedback = `\nПредыдущий вывод отклонён: ${reason}. Исправь.`; continue; }
+      // Recommendations that fail the same checks are dropped one by one.
+      const recommendations = (Array.isArray(raw.recommendations) ? raw.recommendations : []).filter((x): x is string => typeof x === "string")
+        .map(normalizeAnswer).filter((x) => !rejectReason(x, facts, "ru", true));
+      return { summary, recommendations: recommendations.length ? recommendations : fallback.recommendations };
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) break;
+      feedback = "\nПредыдущий ответ не был JSON нужного вида.";
+    }
   }
+  return fallback;
 }

@@ -20,7 +20,8 @@ describe("AI-помощник мастера", () => {
     expect(res.body.data).toEqual([expect.objectContaining({ fullName: "Электрик 2" })]);
     expect(res.body.answer).toBe("Свободен Электрик 2");
     const finalPrompt = JSON.parse(mocks.ollama.calls[1].body.messages[1].content);
-    expect(finalPrompt.data).toHaveLength(1); // ответ строится только на DATA
+    expect(finalPrompt.FACTS.свободны).toEqual(["Электрик 2 (электрик, 4 разряд)"]); // ответ строится только на FACTS, без id
+    expect(JSON.stringify(finalPrompt)).not.toMatch(/"id"/);
   });
 
   it("OVERDUE возвращает только незакрытые просроченные", async () => {
@@ -53,7 +54,10 @@ describe("AI-помощник мастера", () => {
     mocks.ollama.handler = () => ({ status: 503 });
     const res = await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message });
     expect(res.body.intent.intent).toBe(intent);
-    expect(res.body.answer).toContain(`Результат запроса ${intent}`);
+    // Without the model the answer is the exact template, never raw JSON.
+    expect(res.body.fromModel).toBe(false);
+    expect(res.body.answer).not.toMatch(/[{}\[\]]|Результат запроса/);
+    expect(res.body.answer.length).toBeGreaterThan(10);
   });
 
   it("классификатор получает промпт с примерами по каждому намерению", async () => {
@@ -69,7 +73,7 @@ describe("AI-помощник мастера", () => {
       : ollamaReply({ answer: [{ id: base.worker2.id, fullName: "Электрик 2" }] });
     const res = await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message: "Кто свободен из электриков?" });
     expect(res.status).toBe(200);
-    expect(res.body.answer).toBe("Электрик 2");
+    expect(res.body.answer).toBe("Свободны на смене (1): Электрик 2 (электрик, 4 разряд).");
   });
 
   it("BUG-9: мусор в намерении (неизвестный intent, массив в specialty) → fallback по ключевым словам", async () => {
@@ -79,7 +83,7 @@ describe("AI-помощник мастера", () => {
     const res = await request(app).post("/api/assistant/chat").set(bearer(base.master)).send({ message: "Что просрочено?" });
     expect(res.status).toBe(200);
     expect(res.body.intent.intent).toBe("OVERDUE");
-    expect(res.body.answer).toContain("Результат запроса OVERDUE");
+    expect(res.body.answer).toBe("Просроченных нарядов нет.");
   });
 
   it("история сохраняется по пользователю", async () => {

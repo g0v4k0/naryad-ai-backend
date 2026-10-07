@@ -4,7 +4,7 @@ import { STATUS_LABELS } from "../lib/labels.js";
 import { prisma } from "../lib/prisma.js";
 import { formatLocal } from "../lib/time.js";
 import { findRepeatFailures } from "./analytics.js";
-import { askOllama } from "./ollama.js";
+import { phrase } from "./ai-text.js";
 
 const PERIOD_HOURS = { shift: 12, day: 24, week: 24 * 7, month: 24 * 30 } as const;
 const OPEN_STATUSES = ["ISSUED", "ACCEPTED", "QUEUED", "IN_PROGRESS", "PAUSED", "REWORK"] as const;
@@ -98,13 +98,19 @@ export async function buildShiftReport(filter: ReportFilter) {
       minutes: downtimeOrders.reduce((sum, x) => sum + downtimeMinutes(x, now), 0)
     }
   };
-  let aiSummary = `За период выдано ${report.issued}, закрыто ${report.closed}, просрочено ${report.overdue}, отклонено ${report.rejected}. `
+  const fallback = `За период выдано ${report.issued}, закрыто ${report.closed}, просрочено ${report.overdue}, отклонено ${report.rejected}. `
     + `Простой оборудования ${report.downtime.minutes} мин, сейчас в простое ${report.downtime.equipmentInDowntimeNow}. `
     + `На смене ${report.workload.executorsOnShift} исполнителей, заняты ${report.workload.busy}.`;
-  try {
-    const summary = (await askOllama<{ summary?: unknown }>("Верни JSON summary: краткая производственная сводка смены на русском без выдуманных фактов: выдано, выполнено, просрочено, отклонено, загрузка людей, простои.", JSON.stringify(report))).summary;
-    if (typeof summary === "string" && summary.trim()) aiSummary = summary;
-  } catch { /* deterministic summary is enough when Ollama is offline */ }
+  const facts = {
+    выдано: report.issued, выполнено: report.completed, закрыто: report.closed, просрочено: report.overdue, отклонено: report.rejected, отменено: report.cancelled, в_работе: report.inProgress,
+    исполнителей_на_смене: report.workload.executorsOnShift, заняты: report.workload.busy, свободны: report.workload.free,
+    простой_минут: report.downtime.minutes, нарядов_с_простоем: report.downtime.orders, сейчас_в_простое_единиц: report.downtime.equipmentInDowntimeNow,
+    самые_загруженные: load.filter((x) => x.assigned).sort((a, b) => b.assigned - a.assigned).slice(0, 3).map((x) => `${x.fullName}: выдано ${x.assigned}, выполнено ${x.completed}`)
+  };
+  const { text: aiSummary } = await phrase({
+    task: "Напиши сводку смены для мастера горно-обогатительного предприятия: 2–3 предложения — выдано, выполнено, просрочено, отклонено, загрузка людей, простои; отметь, на что обратить внимание.",
+    facts, lang: "ru", hasData: report.issued > 0 || report.workload.executorsOnShift > 0, fallback, key: "summary"
+  });
   return { ...report, aiSummary };
 }
 

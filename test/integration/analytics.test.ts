@@ -85,9 +85,11 @@ describe("поиск аномалий", () => {
 
   it("сводка без Ollama — детерминированный текст", async () => {
     mocks.ollama.handler = () => ({ status: 500 });
-    expect((await summarizeInsights([])).summary).toContain("проверка мастером");
+    expect((await summarizeInsights([])).summary).toBe("Аномалий за период не найдено.");
+    const one = [{ title: "Конвейер К-3: частые отказы", description: "8 нарядов", recommendation: "Проверить ППР", severity: 4 }];
+    expect(await summarizeInsights(one)).toEqual({ summary: "Найдено закономерностей: 1. Конвейер К-3: частые отказы — 8 нарядов.", recommendations: ["Конвейер К-3: частые отказы: Проверить ППР"] });
     mocks.ollama.handler = () => ollamaReply({ summary: ["массив"], recommendations: "строка" });
-    expect((await summarizeInsights([])).summary).toContain("проверка мастером");
+    expect((await summarizeInsights(one)).summary).toContain("Найдено закономерностей: 1");
   });
 });
 

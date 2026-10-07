@@ -239,6 +239,10 @@ export interface AssistantResponse {
     /** Period named in the question, days: shift 0.5, day 1, week 7, month 30, quarter 90. */
     periodDays?: number; areaQuery?: string; areaId?: number; area?: string;
   };
+  /** Language of the answer, same as the question. */
+  lang: "ru" | "kk";
+  /** false: exact template answer (model unavailable or its answer failed the checks). */
+  fromModel: boolean;
   data: unknown;
 }
 export interface AssistantMessage { id: number; userId: number; role: "user" | "assistant"; content: string; sources: unknown; createdAt: ISODate }
