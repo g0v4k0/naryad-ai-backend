@@ -104,12 +104,17 @@ describe("сводки ИИ", () => {
     expect(mocks.ollama.calls[1].body.messages[1].content).toContain("не упомянуты важные выводы: конвейер к-3, аварии чаще в ночную смену");
   });
 
-  it("сводка смены: свой формат модели отклоняется, текст по фактам принимается", async () => {
+  it("сводка смены: цифры всегда точные, модель добавляет только замечание без чисел", async () => {
     await insertOrder(base, { status: "IN_PROGRESS" });
+    const figures = "За период выдано 1, закрыто 0, просрочено 0, отклонено 0. Простой оборудования 0 мин, сейчас в простое 0. На смене 2 исполнителей, заняты 1.";
+    const shift = async () => (await request(app).get("/api/reports/shift").set(bearer(base.master))).body.aiSummary;
     mocks.ollama.handler = () => ollamaReply({ выдано: 1, простои: { минут: 0 } });
-    const fallback = (await request(app).get("/api/reports/shift").set(bearer(base.master))).body.aiSummary;
-    expect(fallback).toMatch(/^За период выдано 1, закрыто 0/);
-    mocks.ollama.handler = () => ollamaReply({ summary: "Выдан 1 наряд, он в работе; на смене 2 исполнителя." });
-    expect((await request(app).get("/api/reports/shift").set(bearer(base.master))).body.aiSummary).toBe("Выдан 1 наряд, он в работе; на смене 2 исполнителя.");
+    expect(await shift()).toBe(figures);
+    mocks.ollama.handler = () => ollamaReply({ note: "6 из 7 нарядов не выполнены" });
+    expect(await shift()).toBe(figures);
+    mocks.ollama.handler = () => ollamaReply({ note: "У Слесаря 1. остались невыполненные наряды, а свободных исполнителей можно подключить." });
+    expect(await shift()).toBe(`${figures} Обратите внимание: у Слесаря 1. остались невыполненные наряды, а свободных исполнителей можно подключить.`);
+    const facts = JSON.parse(mocks.ollama.calls.at(-1)!.body.messages[1].content).FACTS;
+    expect(facts).toEqual({ есть_просроченные_наряды: false, есть_отклонённые_наряды: false, оборудование_сейчас_в_простое: false, есть_свободные_исполнители: true, исполнители_с_невыполненными_нарядами: ["Слесарь 1."] });
   });
 });

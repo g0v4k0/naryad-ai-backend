@@ -136,7 +136,7 @@ async function factsFor(intent: Intent, data: unknown, area: { id: number; name:
     };
   }
   if (intent.intent === "ANOMALIES") {
-    const insights = (data as Array<{ title: string; description: string; recommendation: string; severity: number }>).slice(0, 6);
+    const insights = (data as Array<{ title: string; description: string; recommendation: string; severity: number }>).slice(0, 4);
     const items = insights.map((x) => ({ вывод: x.title, факты: x.description, рекомендация: x.recommendation }));
     const ru = insights.map((x, i) => `${i + 1}) ${x.title}: ${x.description}. ${x.recommendation}`);
     return {
@@ -203,9 +203,10 @@ export async function answerAssistant(userId: number, message: string) {
   }
 
   const { facts, hasData, template } = await factsFor(intent, intent.intent === "EQUIPMENT_HISTORY" ? history : data, area, period);
-  // The local model writes Kazakh with wrong words («3 шеше» — "3 mothers"), so Kazakh questions get the checked template.
-  const { text: answer, fromModel } = lang === "kk"
-    ? { text: template.kk, fromModel: false }
+  // Checked templates instead of the model: Kazakh (the local model writes «3 шеше» — "3 mothers") and anomalies
+  // (retelling comparative statistics it swapped "others' rate" for "cases without a repeat").
+  const { text: answer, fromModel } = lang === "kk" || intent.intent === "ANOMALIES"
+    ? { text: template[lang], fromModel: false }
     : await phrase({
       task: "Ты помощник мастера смены горно-обогатительного предприятия. Кратко (1–4 предложения) ответь на вопрос мастера по данным FACTS.",
       question: message, facts, lang, hasData, fallback: template.ru

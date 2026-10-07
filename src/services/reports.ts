@@ -1,6 +1,6 @@
 import { Prisma, Role } from "@prisma/client";
 import { z } from "zod";
-import { STATUS_LABELS } from "../lib/labels.js";
+import { shortName, STATUS_LABELS } from "../lib/labels.js";
 import { prisma } from "../lib/prisma.js";
 import { formatLocal } from "../lib/time.js";
 import { findRepeatFailures } from "./analytics.js";
@@ -98,19 +98,23 @@ export async function buildShiftReport(filter: ReportFilter) {
       minutes: downtimeOrders.reduce((sum, x) => sum + downtimeMinutes(x, now), 0)
     }
   };
-  const fallback = `За период выдано ${report.issued}, закрыто ${report.closed}, просрочено ${report.overdue}, отклонено ${report.rejected}. `
+  // Figures always come from the data; the model only adds what to look at, without numbers (it mixed up
+  // "orders in progress" and "busy executors" when it retold figures).
+  const figures = `За период выдано ${report.issued}, закрыто ${report.closed}, просрочено ${report.overdue}, отклонено ${report.rejected}. `
     + `Простой оборудования ${report.downtime.minutes} мин, сейчас в простое ${report.downtime.equipmentInDowntimeNow}. `
     + `На смене ${report.workload.executorsOnShift} исполнителей, заняты ${report.workload.busy}.`;
   const facts = {
-    выдано: report.issued, выполнено: report.completed, закрыто: report.closed, просрочено: report.overdue, отклонено: report.rejected, отменено: report.cancelled, нарядов_в_работе: report.inProgress,
-    исполнителей_на_смене: report.workload.executorsOnShift, исполнителей_занято: report.workload.busy, исполнителей_свободно: report.workload.free,
-    простой_минут: report.downtime.minutes, нарядов_с_простоем: report.downtime.orders, сейчас_в_простое_единиц: report.downtime.equipmentInDowntimeNow,
-    самые_загруженные: load.filter((x) => x.assigned).sort((a, b) => b.assigned - a.assigned).slice(0, 3).map((x) => `${x.fullName}: выдано ${x.assigned}, выполнено ${x.completed}`)
+    есть_просроченные_наряды: report.overdue > 0,
+    есть_отклонённые_наряды: report.rejected > 0,
+    оборудование_сейчас_в_простое: report.downtime.equipmentInDowntimeNow > 0,
+    есть_свободные_исполнители: report.workload.free > 0,
+    исполнители_с_невыполненными_нарядами: load.filter((x) => x.assigned > x.completed).map((x) => shortName(x.fullName))
   };
-  const { text: aiSummary } = await phrase({
-    task: "Напиши сводку смены для мастера горно-обогатительного предприятия: 2–3 предложения — выдано, выполнено, просрочено, отклонено, загрузка людей, простои; отметь, на что обратить внимание.",
-    facts, lang: "ru", hasData: report.issued > 0 || report.workload.executorsOnShift > 0, fallback, key: "summary"
+  const { text: note, fromModel } = await phrase({
+    task: "Ты помощник мастера смены горно-обогатительного предприятия. Одним предложением скажи, на что мастеру обратить внимание в эту смену, по признакам из FACTS. Не используй цифры.",
+    facts, lang: "ru", hasData: true, fallback: "", key: "note"
   });
+  const aiSummary = fromModel && note ? `${figures} Обратите внимание: ${note.charAt(0).toLowerCase()}${note.slice(1)}` : figures;
   return { ...report, aiSummary };
 }
 

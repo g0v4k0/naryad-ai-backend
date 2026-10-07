@@ -16,10 +16,10 @@ describe("отчёты", () => {
     await insertOrder(base, { status: "CLOSED" });
     await insertOrder(base, { status: "AI_REVIEW" });
     await insertOrder(base, { status: "IN_PROGRESS", deadline: new Date(Date.now() - 1000) });
-    mocks.ollama.handler = () => ollamaReply({ summary: "Смена прошла штатно" });
+    mocks.ollama.handler = () => ollamaReply({ note: "Разберитесь с просроченным нарядом" });
     const res = await request(app).get("/api/reports/shift").set(bearer(base.master));
-    expect(res.body).toMatchObject({ issued: 3, completed: 2, closed: 1, overdue: 1, rejected: 0, aiSummary: "Смена прошла штатно" });
     const fallback = "За период выдано 3, закрыто 1, просрочено 1, отклонено 0. Простой оборудования 0 мин, сейчас в простое 0. На смене 2 исполнителей, заняты 1.";
+    expect(res.body).toMatchObject({ issued: 3, completed: 2, closed: 1, overdue: 1, rejected: 0, aiSummary: `${fallback} Обратите внимание: разберитесь с просроченным нарядом` });
     mocks.ollama.handler = () => ({ status: 500 });
     expect((await request(app).get("/api/reports/shift").set(bearer(base.master))).body.aiSummary).toBe(fallback);
     mocks.ollama.handler = () => ollamaReply({ summary: { text: "не строка" } });
