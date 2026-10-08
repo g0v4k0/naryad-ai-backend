@@ -14,6 +14,8 @@ import { enqueueWorkOrderSync } from "../services/one-c.js";
 import { learnFromMasterDecision } from "../services/rag.js";
 import { executorOrderReport, masterOrderReport, orderTiming } from "../services/order-report.js";
 import { recommendExecutors } from "../services/recommendations.js";
+import { PRIORITY_LABELS, STATUS_LABELS } from "../lib/labels.js";
+import { formatLocal } from "../lib/time.js";
 
 export const workOrdersRouter = Router();
 workOrdersRouter.use(auth);
@@ -164,6 +166,8 @@ workOrdersRouter.post("/", allow(Role.MASTER, Role.ADMIN), asyncHandler(async (r
     deadline: z.coerce.date().optional(),
     priority: z.enum(["EMERGENCY", "HIGH", "NORMAL", "PLANNED"]),
     normativeId: z.number().int().positive().optional(),
+    // Fault code suggested from the description; the executor confirms or changes it on completion.
+    faultCodeId: z.number().int().positive().optional(),
     comment: z.string().optional(),
     beforePhotoUrls: z.array(z.string().transform(normalizePhotoUrl)).max(5).default([])
   }).refine((value) => value.deadline || value.normativeId, { message: "Укажите срок или норматив" })
@@ -179,6 +183,7 @@ workOrdersRouter.post("/", allow(Role.MASTER, Role.ADMIN), asyncHandler(async (r
   if (input.brigadeId && assignee.brigadeId !== input.brigadeId) throw new HttpError(400, "Исполнитель не состоит в этой бригаде");
   const normative = input.normativeId ? await prisma.workNormative.findUnique({ where: { id: input.normativeId } }) : null;
   if (input.normativeId && !normative) throw new HttpError(400, "Норматив не найден");
+  if (input.faultCodeId && !await prisma.faultCode.findUnique({ where: { id: input.faultCodeId } })) throw new HttpError(400, "Шифр неисправности не найден");
   const deadline = input.deadline ?? new Date(Date.now() + Number(normative?.hours ?? 2) * 3_600_000);
   const number = `N-${Date.now().toString().slice(-8)}`;
   const { beforePhotoUrls, ...orderInput } = input;
@@ -190,7 +195,8 @@ workOrdersRouter.post("/", allow(Role.MASTER, Role.ADMIN), asyncHandler(async (r
       creatorId: req.user!.id,
       photos: { create: beforePhotoUrls.map((fileUrl) => ({ fileUrl, authorId: req.user!.id, type: PhotoType.BEFORE })) }
     }, include: orderInclude });
-    await tx.workOrderEvent.create({ data: { workOrderId: created.id, actorId: req.user!.id, action: "CREATE", toStatus: WorkOrderStatus.ISSUED } });
+    const summary = [`Исполнитель: ${assignee.fullName}`, `приоритет: ${PRIORITY_LABELS[created.priority]}`, ...(normative ? [`норматив: ${normative.name} (${Number(normative.hours)} ч)`] : []), `срок: ${formatLocal(deadline)}`];
+    await tx.workOrderEvent.create({ data: { workOrderId: created.id, actorId: req.user!.id, action: "CREATE", toStatus: WorkOrderStatus.ISSUED, comment: summary.join("; ") } });
     if (created.type === "EMERGENCY") await tx.equipmentDowntime.create({ data: { equipmentId: created.equipmentId, workOrderId: created.id, startedAt: created.createdAt, reason: created.description } });
     return created;
   });
@@ -308,25 +314,46 @@ workOrdersRouter.post("/:id/comment", asyncHandler(async (req, res) => {
 workOrdersRouter.patch("/:id", allow(Role.MASTER, Role.ADMIN), asyncHandler(async (req, res) => {
   const input = z.object({
     priority: z.enum(["EMERGENCY", "HIGH", "NORMAL", "PLANNED"]).optional(),
-    deadline: z.coerce.date().optional(),
+    // null or "" from a cleared date field means "keep the deadline", not 1970.
+    deadline: z.preprocess((v) => (v === null || v === "" ? undefined : v), z.coerce.date().optional()),
     comment: z.string().optional()
   }).parse(req.body);
-  const order = await prisma.workOrder.update({ where: { id: Number(req.params.id) }, data: input, include: orderInclude });
-  await prisma.workOrderEvent.create({ data: { workOrderId: order.id, actorId: req.user!.id, action: "EDIT", toStatus: order.status, comment: input.comment } });
+  const id = Number(req.params.id);
+  const previous = await prisma.workOrder.findUnique({ where: { id } });
+  if (!previous) throw new HttpError(404, "Наряд не найден");
+  if (NOT_REASSIGNABLE.includes(previous.status) || previous.status === WorkOrderStatus.REJECTED) throw new HttpError(409, `Наряд в статусе «${STATUS_LABELS[previous.status]}» нельзя изменить`);
+  // History says what changed, not just "edited".
+  const changes = [
+    ...(input.priority && input.priority !== previous.priority ? [`приоритет: ${PRIORITY_LABELS[previous.priority]} → ${PRIORITY_LABELS[input.priority]}`] : []),
+    ...(input.deadline && input.deadline.getTime() !== previous.deadline.getTime() ? [`срок: ${formatLocal(previous.deadline)} → ${formatLocal(input.deadline)}`] : []),
+    ...(input.comment !== undefined && input.comment.trim() !== (previous.comment ?? "").trim() ? [input.comment.trim() ? `комментарий: ${input.comment.trim()}` : "комментарий удалён"] : [])
+  ];
+  if (!changes.length) return res.json(await prisma.workOrder.findUniqueOrThrow({ where: { id }, include: orderInclude }));
+  const order = await prisma.workOrder.update({ where: { id }, data: input, include: orderInclude });
+  await prisma.workOrderEvent.create({ data: { workOrderId: order.id, actorId: req.user!.id, action: "EDIT", fromStatus: order.status, toStatus: order.status, comment: changes.join("; ") } });
+  if (input.priority && input.priority !== previous.priority) {
+    await notify({ userId: order.assigneeId, workOrderId: order.id, type: "ORDER_CHANGED", title: `Наряд ${order.number}: приоритет ${PRIORITY_LABELS[input.priority]}`, message: order.description, data: { priority: order.priority } });
+  }
   emitOrderChanged(order);
   await enqueueWorkOrderSync(order.id, "EDITED");
   res.json(order);
 }));
 
 workOrdersRouter.post("/:id/reassign", allow(Role.MASTER, Role.ADMIN), asyncHandler(async (req, res) => {
-  const { assigneeId } = z.object({ assigneeId: z.number().int().positive() }).parse(req.body);
-  const previous = await prisma.workOrder.findUnique({ where: { id: Number(req.params.id) }, select: { assigneeId: true, status: true } });
+  const { assigneeId, comment } = z.object({ assigneeId: z.number().int().positive(), comment: z.string().trim().max(1000).optional() }).parse(req.body);
+  const previous = await prisma.workOrder.findUnique({ where: { id: Number(req.params.id) }, select: { assigneeId: true, status: true, brigadeId: true, assignee: { select: { fullName: true } } } });
   if (!previous) throw new HttpError(404, "Наряд не найден");
   if (NOT_REASSIGNABLE.includes(previous.status)) throw new HttpError(409, `Наряд в статусе ${previous.status} нельзя переназначить`);
-  if (!await prisma.user.findFirst({ where: { id: assigneeId, role: Role.EXECUTOR } })) throw new HttpError(400, "Назначить можно только исполнителя");
-  const order = await prisma.workOrder.update({ where: { id: Number(req.params.id) }, data: { assigneeId, status: WorkOrderStatus.ISSUED }, include: orderInclude });
-  await prisma.workOrderEvent.create({ data: { workOrderId: order.id, actorId: req.user!.id, action: "REASSIGN", toStatus: WorkOrderStatus.ISSUED } });
+  if (previous.assigneeId === assigneeId) throw new HttpError(400, "Наряд уже назначен этому исполнителю");
+  const assignee = await prisma.user.findFirst({ where: { id: assigneeId, role: Role.EXECUTOR } });
+  if (!assignee) throw new HttpError(400, "Назначить можно только исполнителя");
+  // A brigade order handed to someone outside the brigade stops being a brigade order.
+  const brigadeId = previous.brigadeId && assignee.brigadeId !== previous.brigadeId ? null : previous.brigadeId;
+  const order = await prisma.workOrder.update({ where: { id: Number(req.params.id) }, data: { assigneeId, brigadeId, status: WorkOrderStatus.ISSUED }, include: orderInclude });
+  const summary = `${previous.assignee.fullName} → ${assignee.fullName}${comment ? `. Причина: ${comment}` : ""}`;
+  await prisma.workOrderEvent.create({ data: { workOrderId: order.id, actorId: req.user!.id, action: "REASSIGN", fromStatus: previous.status, toStatus: WorkOrderStatus.ISSUED, comment: summary } });
   await notify({ userId: assigneeId, workOrderId: order.id, type: "NEW_ORDER", title: `Наряд ${order.number} переназначен вам`, message: order.description });
+  await notify({ userId: previous.assigneeId, workOrderId: order.id, type: "ORDER_REASSIGNED", title: `Наряд ${order.number} передан другому исполнителю`, message: `Новый исполнитель: ${assignee.fullName}` });
   await Promise.all([refreshEmployeeStatus(previous.assigneeId), refreshEmployeeStatus(assigneeId)]);
   emitOrderChanged(order, [previous.assigneeId]);
   await enqueueWorkOrderSync(order.id, "REASSIGNED");

@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { Role, type WorkOrderStatus } from "@prisma/client";
+import { Role } from "@prisma/client";
 import { z } from "zod";
-import { asyncHandler } from "../lib/http.js";
+import { asyncHandler, HttpError } from "../lib/http.js";
 import { prisma } from "../lib/prisma.js";
 import { auth } from "../middleware/auth.js";
+import { describeWorkload, openOrdersSelect } from "../services/employee-status.js";
 
 export const referencesRouter = Router();
 referencesRouter.use(auth);
@@ -24,12 +25,17 @@ referencesRouter.get("/materials", asyncHandler(async (_req, res) => {
 referencesRouter.get("/brigades", asyncHandler(async (_req, res) => {
   res.json(await prisma.brigade.findMany({ include: { members: { select: { id: true, fullName: true, specialty: true } } } }));
 }));
+/** With equipmentId: the normatives of that unit and of its equipment type (most normatives are set per type). */
 referencesRouter.get("/normatives", asyncHandler(async (req, res) => {
-  res.json(await prisma.workNormative.findMany({ where: { ...(req.query.equipmentId ? { equipmentId: Number(req.query.equipmentId) } : {}) }, include: { faultCode: true, materialNorms: { include: { material: true } } } }));
+  const { equipmentId } = z.object({ equipmentId: z.coerce.number().int().positive().optional() }).parse(req.query);
+  const equipment = equipmentId ? await prisma.equipment.findUnique({ where: { id: equipmentId }, select: { type: true } }) : null;
+  if (equipmentId && !equipment) throw new HttpError(404, "Оборудование не найдено");
+  res.json(await prisma.workNormative.findMany({
+    where: equipment ? { OR: [{ equipmentId }, { equipmentId: null, equipmentType: equipment.type }] } : {},
+    include: { faultCode: true, materialNorms: { include: { material: true } } },
+    orderBy: { name: "asc" }
+  }));
 }));
-const WORKING: WorkOrderStatus[] = ["IN_PROGRESS", "PAUSED", "REWORK", "ACCEPTED"];
-const WAITING: WorkOrderStatus[] = ["ISSUED", "QUEUED"];
-
 /** Executors with what the master needs when assigning: "свободен / выполняет наряд №… / в очереди N / не на смене". */
 referencesRouter.get("/executors", asyncHandler(async (req, res) => {
   const filters = z.object({
@@ -48,22 +54,13 @@ referencesRouter.get("/executors", asyncHandler(async (req, res) => {
       brigade: { select: { id: true, name: true } },
       employeeStatus: true,
       isOnShift: true,
-      assignedOrders: {
-        where: { status: { in: [...WORKING, ...WAITING] } },
-        select: { id: true, number: true, status: true, priority: true, deadline: true, equipment: { select: { name: true } } },
-        orderBy: [{ priority: "asc" }, { deadline: "asc" }]
-      }
+      assignedOrders: openOrdersSelect
     },
     orderBy: { fullName: "asc" }
   });
   res.json(users.map(({ assignedOrders, ...user }) => {
-    const working = assignedOrders.filter((x) => WORKING.includes(x.status));
-    const current = working.find((x) => x.status === "IN_PROGRESS") ?? working[0] ?? null;
-    const queue = assignedOrders.filter((x) => WAITING.includes(x.status)).length;
-    const statusText = !user.isOnShift ? "не на смене"
-      : current ? `выполняет наряд №${current.number}${queue ? `, в очереди ${queue}` : ""}`
-        : queue ? `в очереди ${queue} ${queue === 1 ? "наряд" : queue < 5 ? "наряда" : "нарядов"}` : "свободен";
+    const workload = describeWorkload(user.isOnShift, assignedOrders);
     // _count kept for clients written against the previous response.
-    return { ...user, currentOrder: current, queue, activeOrders: assignedOrders.length, statusText, _count: { assignedOrders: assignedOrders.length } };
+    return { ...user, ...workload, _count: { assignedOrders: workload.activeOrders } };
   }));
 }));

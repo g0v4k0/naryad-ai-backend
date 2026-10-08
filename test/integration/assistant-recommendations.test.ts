@@ -115,7 +115,7 @@ describe("рекомендации", () => {
   it("рекомендация шифра: несуществующие id от модели отбрасываются", async () => {
     mocks.ollama.handler = () => ollamaReply({ faultCodeId: 9999, normativeId: "abc", estimatedHours: -1, explanation: ["x"] });
     const res = await request(app).post("/api/recommendations/work").set(bearer(base.master)).send({ description: "Гул", equipmentId: base.pump.id });
-    expect(res.body).toEqual({ faultCodeId: null, normativeId: null, estimatedHours: 2, explanation: "Рекомендация по справочнику", basedOn: 0 });
+    expect(res.body).toEqual({ faultCodeId: null, normativeId: null, estimatedHours: 2, explanation: "Рекомендация по справочнику", basedOn: 0, faultCode: null, normative: null });
   });
 
   it("шифр и норматив: LLM-ответ и fallback по справочнику", async () => {

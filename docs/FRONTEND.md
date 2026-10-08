@@ -301,6 +301,7 @@
 | `equipmentId` | должен принадлежать `areaId`, иначе 400 |
 | `assigneeId` | только пользователь с ролью `EXECUTOR`, иначе 400 |
 | `beforePhotoUrls` | до 5 ссылок из `POST /api/uploads` |
+| `faultCodeId` | необязателен: шифр, предложенный ИИ; исполнитель может сменить его при завершении. Несуществующий → 400 |
 
 Ответ `201` — полный наряд. Номер присваивается автоматически (`N-xxxxxxxx`).
 
@@ -316,6 +317,8 @@
 
 > ⚠️ **Создание не идемпотентно**: повторная отправка создаст второй наряд. Не ставьте создание в автоматическую офлайн-очередь без проверки; см. [§7](#7-офлайн-очередь).
 
+> 📱 Полный сценарий экрана создания для мобильного приложения (шаги, логика, запросы, чек-лист, промт для ИИ-агента) — [MOBILE_CREATE_ORDER.md](MOBILE_CREATE_ORDER.md).
+
 **Подсказки для формы создания:**
 1. Выбрали оборудование и ввели описание → `GET /api/recommendations/executors?equipmentId=…&description=…` покажет, кого назначить: свободных нужной специальности первыми ([§16](#16-рекомендации-и-ai-помощник)).
 2. Ввели описание → `POST /api/recommendations/work` предложит шифр, норматив и часы.
@@ -326,17 +329,21 @@
 ```json
 { "priority": "HIGH", "deadline": "2026-10-06T08:00:00.000Z", "comment": "Перенос по согласованию" }
 ```
-Все поля необязательны. Ответ — полный наряд. В журнал пишется событие `EDIT`.
-
-Сервер не проверяет статус при правке, поэтому показывайте «Изменить» только для активных нарядов: `ISSUED`, `ACCEPTED`, `QUEUED`, `IN_PROGRESS`, `PAUSED`, `REWORK`.
+Все поля необязательны; `deadline: null` или `""` — «не менять». Ответ — полный наряд.
+- В журнал пишется событие `EDIT` с прежним и новым значением: `приоритет: обычный → аварийный; срок: … → …`. Если ничего не изменилось, событие не пишется.
+- При смене приоритета исполнитель получает уведомление `ORDER_CHANGED`.
+- `409` — наряд в статусе `COMPLETED`, `AI_REVIEW`, `CLOSED`, `CANCELLED` или `REJECTED`. Показывайте «Изменить» только для `ISSUED`, `ACCEPTED`, `QUEUED`, `IN_PROGRESS`, `PAUSED`, `REWORK`.
 
 ### Переназначение — `POST /api/work-orders/:id/reassign` (мастер, админ)
 
 ```json
-{ "assigneeId": 7 }
+{ "assigneeId": 7, "comment": "Прежний исполнитель на аварии" }
 ```
-- Наряд возвращается в `ISSUED`, новый исполнитель получает уведомление.
-- `400` — новый исполнитель не `EXECUTOR`.
+- `comment` — причина, необязательна (до 1000 символов).
+- Наряд возвращается в `ISSUED`. Новый исполнитель получает `NEW_ORDER`, прежний — `ORDER_REASSIGNED`.
+- Если наряд был выдан бригаде, а новый исполнитель не из неё, `brigadeId` становится `null`.
+- В журнал пишется `REASSIGN` с текстом «Прежний → Новый. Причина: …».
+- `400` — новый исполнитель не `EXECUTOR` или наряд уже назначен ему.
 - `409` — наряд в статусе `COMPLETED`, `AI_REVIEW`, `CLOSED` или `CANCELLED`.
 - Отклонённый наряд (`REJECTED`) переназначать можно — это обычный сценарий после отказа.
 
@@ -632,7 +639,7 @@ POST /api/devices
 | `GET /api/references/fault-codes` | `{ id, code, name, category }` |
 | `GET /api/references/materials` | `{ id, name, unit }` |
 | `GET /api/references/brigades` | `{ id, name, members: [{ id, fullName, specialty }] }` |
-| `GET /api/references/normatives[?equipmentId=]` | `{ id, name, equipmentType, equipmentId, faultCodeId, hours: "2", faultCode, materialNorms: [{ materialId, quantity: "1", material }] }` |
+| `GET /api/references/normatives[?equipmentId=]` | `{ id, name, equipmentType, equipmentId, faultCodeId, hours: "2", faultCode, materialNorms: [{ materialId, quantity: "1", material }] }`  С `equipmentId` — нормативы этой единицы **и её типа оборудования** (большинство нормативов заданы на тип); неизвестный id → 404 |
 | `GET /api/references/executors[?specialty=&brigadeId=&onShift=1]` | `{ id, fullName, specialty, grade, brigadeId, brigade, employeeStatus, isOnShift, statusText, currentOrder, queue, activeOrders, _count: { assignedOrders } }` |
 
 `employeeStatus`: `AVAILABLE` (свободен), `BUSY` (занят), `QUEUED` (есть ожидающие наряды), `OFF_SHIFT` (не на смене). Цвета панели (кейс, 5.2): `AVAILABLE` — зелёный, `BUSY` — жёлтый, `QUEUED` — синий, `OFF_SHIFT` — серый.
@@ -659,20 +666,24 @@ QR содержит ссылку вида `…/equipment/<qrToken>`. **Бери�
 
 Параметры: `equipmentId` (обязателен), а также подсказки о работе — `description` (текст проблемы), `faultCodeId`, `specialty`; `brigadeId` — искать только в бригаде. Только исполнители на смене; **сначала нужной специальности**, внутри — по баллу:
 ```json
-[{ "id": 6, "fullName": "Ким Вадим Олегович", "specialty": "Слесарь", "brigadeId": 1, "employeeStatus": "AVAILABLE", "queue": 0, "equipmentRating": 4.6, "specialtyMatch": true, "requiredSpecialty": "Слесарь", "score": 86.8 }]
+[{ "id": 6, "fullName": "Ким Вадим Олегович", "specialty": "Слесарь", "grade": 5, "brigadeId": 1, "employeeStatus": "AVAILABLE", "statusText": "свободен", "currentOrder": null, "queue": 0, "equipmentRating": 4.6, "equipmentOrders": 8, "specialtyMatch": true, "requiredSpecialty": "Слесарь", "score": 86.8, "reasons": ["свободен", "нужная специальность: Слесарь", "оценка 4.6 по 8 нарядам на «Дробилка»"] }]
 ```
+`statusText` и `currentOrder` — как в `/api/references/executors`; `equipmentOrders` — по скольким нарядам посчитан `equipmentRating`; `reasons` — готовые фразы «почему он» для карточки.
 Специальность определяется так: явный `specialty` → категория шифра (`Э` — электрик, остальные — слесарь) → слова в описании («двигатель», «кабель», «пускатель» — электрик; «сварка», «трещина» — сварщик; иначе слесарь). Без подсказок специальность не учитывается и `specialtyMatch: null`. `equipmentRating` — средняя оценка работ на таком типе оборудования, `queue` — активных нарядов. Без `equipmentId` — 400, с несуществующим — 404.
 
 ### Шифр и норматив по описанию — `POST /api/recommendations/work`
 
 ```json
-{ "description": "Течь сальника насоса", "equipmentId": 1 }
+{ "description": "Течь сальника насоса", "equipmentId": 1, "fast": true }
 ```
+`fast: true` — без LLM, голосованием похожих закрытых нарядов (~0,5 с; без похожих — `null`). Без `fast` — LLM (10–20 с). Удобно слать оба параллельно: быстрый показать сразу, полный — заменить им.
 ```json
-{ "faultCodeId": 4, "normativeId": 4, "estimatedHours": 5, "explanation": "Течь сальника обычно связана с износом набивки…", "basedOn": 4 }
+{ "faultCodeId": 4, "normativeId": 4, "estimatedHours": 5, "explanation": "Течь сальника обычно связана с износом набивки…", "basedOn": 4,
+  "faultCode": { "id": 4, "code": "Г-01", "name": "Течь масла, уплотнения" }, "normative": { "id": 4, "name": "Замена уплотнений", "hours": 5 } }
 ```
+Норматив согласован с шифром; `explanation` — без внутренних id.
 `basedOn` — на скольких похожих закрытых нарядах предприятия основана подсказка (0 — только справочник). Можно показать «по 4 похожим нарядам».
-`faultCodeId` и `normativeId` могут быть `null`. Показывайте их как **подсказку** с кнопкой «Применить», а не подставляйте молча. Ответ приходит за 2–10 с.
+`faultCodeId` и `normativeId` могут быть `null`. Показывайте их как **подсказку** с кнопкой «Применить», а не подставляйте молча. Полный ответ приходит за 10–20 с, быстрый — за ~0,5 с.
 
 ### AI-помощник — `POST /api/assistant/chat`
 

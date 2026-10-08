@@ -67,6 +67,83 @@ describe("5.1 выдача наряда", () => {
     expect((await request(app).get(`/api/work-orders?brigadeId=${base.brigade.id}`).set(bearer(base.master))).body).toHaveLength(1);
   });
 
+  it("ИИ-подбор показывает статус исполнителя и объясняет выбор", async () => {
+    const current = await insertOrder(base, { status: "IN_PROGRESS", assigneeId: base.worker2.id });
+    const done = await insertOrder(base, { status: "CLOSED", assigneeId: base.worker1.id });
+    await prisma.aiAssessment.create({ data: { workOrderId: done.id, verdict: "ACCEPTED", score: 4, masterScore: 5, explanation: "x" } });
+    const res = await request(app).get(`/api/recommendations/executors?equipmentId=${base.pump.id}&description=${encodeURIComponent("Течь масла")}`).set(bearer(base.master));
+    expect(res.body[0]).toMatchObject({ id: base.worker1.id, statusText: "свободен", equipmentOrders: 1, grade: 5 });
+    expect(res.body[0].reasons).toEqual(["свободен", "нужная специальность: Слесарь", "оценка 5.0 по 1 нарядам на «Насос»"]);
+    expect(res.body[1]).toMatchObject({ id: base.worker2.id, statusText: `выполняет наряд №${current.number}`, currentOrder: { id: current.id } });
+    expect(res.body[1].reasons[1]).toBe("нужен Слесарь, а это Электрик");
+  });
+
+  it("нормативы оборудования включают нормативы его типа", async () => {
+    const own = await prisma.workNormative.create({ data: { name: "Ревизия насоса Н-1", equipmentId: base.pump.id, hours: 1 } });
+    await prisma.workNormative.create({ data: { name: "Ремонт конвейера", equipmentType: "Конвейер", hours: 3 } });
+    const res = await request(app).get(`/api/references/normatives?equipmentId=${base.pump.id}`).set(bearer(base.master));
+    expect(res.body.map((x: any) => x.id).sort()).toEqual([base.normative.id, own.id].sort());
+    expect((await request(app).get("/api/references/normatives?equipmentId=999999").set(bearer(base.master))).status).toBe(404);
+  });
+
+  it("подсказка шифра и норматива: норматив подходит к шифру, в объяснении нет внутренних id; быстрый режим без LLM", async () => {
+    const other = await prisma.workNormative.create({ data: { name: "Электроремонт насоса", equipmentType: "Насос", faultCodeId: base.fault2.id, hours: 5 } });
+    mocks.ollama.handler = () => ollamaReply({ faultCodeId: base.fault.id, normativeId: other.id, estimatedHours: 2, explanation: `Шифр ${base.fault.id}: износ. Норматив ${other.id} — 2 часа` });
+    const res = await request(app).post("/api/recommendations/work").set(bearer(base.master)).send({ description: "Гул подшипника", equipmentId: base.pump.id });
+    expect(res.body).toMatchObject({
+      faultCodeId: base.fault.id, normativeId: base.normative.id,
+      faultCode: { code: "М-01", name: "Износ подшипника" }, normative: { name: "Замена подшипника насоса", hours: 2 },
+      explanation: "Шифр М-01: износ. Норматив «Замена подшипника насоса» — 2 часа"
+    });
+    const calls = mocks.ollama.calls.length;
+    const fast = await request(app).post("/api/recommendations/work").set(bearer(base.master)).send({ description: "Гул подшипника", equipmentId: base.pump.id, fast: true });
+    expect(fast.body).toMatchObject({ faultCodeId: null, normativeId: null, basedOn: 0 });
+    expect(mocks.ollama.calls.length).toBe(calls);
+  });
+
+  it("при создании сохраняется предложенный шифр, в истории — кому, с каким приоритетом и сроком выдан наряд", async () => {
+    const res = await request(app).post("/api/work-orders").set(bearer(base.master)).send({
+      type: "PLANNED", description: "Гул подшипника", areaId: base.area.id, equipmentId: base.pump.id,
+      assigneeId: base.worker1.id, priority: "HIGH", normativeId: base.normative.id, faultCodeId: base.fault.id
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.faultCodeId).toBe(base.fault.id);
+    const event = await prisma.workOrderEvent.findFirstOrThrow({ where: { workOrderId: res.body.id, action: "CREATE" } });
+    expect(event.comment).toMatch(/^Исполнитель: Слесарь 1; приоритет: высокий; норматив: Замена подшипника насоса \(2 ч\); срок: /);
+    const bad = await request(app).post("/api/work-orders").set(bearer(base.master)).send({
+      type: "PLANNED", description: "Гул", areaId: base.area.id, equipmentId: base.pump.id, assigneeId: base.worker1.id, priority: "HIGH", normativeId: base.normative.id, faultCodeId: 999999
+    });
+    expect(bad.status).toBe(400);
+  });
+
+  it("смена приоритета и срока фиксируется в истории с прежним и новым значением; исполнитель уведомлён", async () => {
+    const order = await insertOrder(base, { status: "IN_PROGRESS" });
+    const res = await request(app).patch(`/api/work-orders/${order.id}`).set(bearer(base.master)).send({ priority: "EMERGENCY", deadline: null });
+    expect(res.status).toBe(200);
+    expect(res.body.deadline).toBe(order.deadline.toISOString());
+    const [event] = await prisma.workOrderEvent.findMany({ where: { workOrderId: order.id, action: "EDIT" } });
+    expect(event.comment).toBe("приоритет: обычный → аварийный");
+    expect(await prisma.notification.count({ where: { userId: base.worker1.id, type: "ORDER_CHANGED" } })).toBe(1);
+    // Nothing changed — nothing to record.
+    await request(app).patch(`/api/work-orders/${order.id}`).set(bearer(base.master)).send({ priority: "EMERGENCY" });
+    expect(await prisma.workOrderEvent.count({ where: { workOrderId: order.id, action: "EDIT" } })).toBe(1);
+    const closed = await insertOrder(base, { status: "CLOSED" });
+    expect((await request(app).patch(`/api/work-orders/${closed.id}`).set(bearer(base.master)).send({ priority: "HIGH" })).status).toBe(409);
+    expect((await request(app).patch(`/api/work-orders/${order.id}`).set(bearer(base.worker1)).send({ priority: "HIGH" })).status).toBe(403);
+  });
+
+  it("переназначение: в истории прежний и новый исполнитель и причина; прежний уведомлён; бригада снимается, если новый не в ней", async () => {
+    const outsider = await createUser({ login: "worker9", phone: "+77010000099", role: "EXECUTOR", fullName: "Слесарь 9", specialty: "Слесарь" });
+    const order = await insertOrder(base, { status: "ACCEPTED", brigadeId: base.brigade.id });
+    const same = await request(app).post(`/api/work-orders/${order.id}/reassign`).set(bearer(base.master)).send({ assigneeId: base.worker1.id });
+    expect(same.status).toBe(400);
+    const res = await request(app).post(`/api/work-orders/${order.id}/reassign`).set(bearer(base.master)).send({ assigneeId: outsider.id, comment: "Слесарь 1 на другом участке" });
+    expect(res.body).toMatchObject({ assigneeId: outsider.id, brigadeId: null, status: "ISSUED" });
+    const event = await prisma.workOrderEvent.findFirstOrThrow({ where: { workOrderId: order.id, action: "REASSIGN" } });
+    expect(event).toMatchObject({ fromStatus: "ACCEPTED", toStatus: "ISSUED", comment: "Слесарь 1 → Слесарь 9. Причина: Слесарь 1 на другом участке" });
+    expect(await prisma.notification.count({ where: { userId: base.worker1.id, type: "ORDER_REASSIGNED" } })).toBe(1);
+  });
+
   it("мастер отменяет наряд в работе или на доработке; простой оборудования закрывается", async () => {
     const order = await insertOrder(base, { status: "IN_PROGRESS", type: "EMERGENCY" });
     await prisma.equipmentDowntime.create({ data: { equipmentId: base.pump.id, workOrderId: order.id, startedAt: new Date(Date.now() - HOUR) } });

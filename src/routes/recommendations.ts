@@ -17,6 +17,6 @@ recommendationsRouter.get("/executors", asyncHandler(async (req, res) => {
   res.json(await recommendExecutors(equipmentId, hints));
 }));
 recommendationsRouter.post("/work", asyncHandler(async (req, res) => {
-  const input = z.object({ description: z.string().min(3), equipmentId: z.number().int().positive() }).parse(req.body);
-  res.json(await suggestFaultAndNormative(input.description, input.equipmentId));
+  const input = z.object({ description: z.string().min(3), equipmentId: z.number().int().positive(), fast: z.boolean().optional() }).parse(req.body);
+  res.json(await suggestFaultAndNormative(input.description, input.equipmentId, { fast: input.fast }));
 }));

@@ -189,7 +189,7 @@ describe("Socket.IO realtime", () => {
     for (const k of Object.keys(got)) got[k] = [];
     await request(app).post(`/api/work-orders/${res.body.id}/reassign`).set(bearer(base.master)).send({ assigneeId: base.worker2.id });
     await new Promise((r) => setTimeout(r, 300));
-    expect(got.worker1).toEqual(["order"]);
+    expect(got.worker1.sort()).toEqual(["notification", "order"]); // прежний исполнитель узнаёт, что наряд передан
     expect(got.worker2.sort()).toEqual(["notification", "order"]);
     Object.values(sockets).forEach((s) => s.close());
   });
